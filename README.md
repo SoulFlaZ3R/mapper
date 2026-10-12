@@ -94,6 +94,7 @@ portable/           Windows executable and usage notes
 ## License
 
 Mapper source: [MIT](LICENSE), Mattia De Lillo.
+Bundled Inter fonts: SIL Open Font License 1.1, © The Inter Project Authors ([src/fonts/OFL.txt](src/fonts/OFL.txt)).
 PySide6/Qt have their own licenses; see [Qt licensing](https://doc.qt.io/qt-6/licensing.html)
 when redistributing the bundled runtime. Executables are never committed: tagged pushes (`v*`)
 test, build and smoke-test the exe on GitHub Actions, attach a build-provenance attestation and
