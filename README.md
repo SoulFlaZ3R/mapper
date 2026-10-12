@@ -154,5 +154,7 @@ PySide6/Qt have their own licenses; see [Qt licensing](https://doc.qt.io/qt-6/li
 when redistributing the bundled runtime. Executables are never committed: tagged pushes (`v*`)
 test, build and smoke-test the exe on GitHub Actions, attach a build-provenance attestation and
 a SHA-256 checksum, and publish them as a release. Code signing (SignPath) is prepared but disabled.
+A manual run (**Actions → Build and Sign → Run workflow**) only tests, builds and smoke-tests the exe,
+then discards it: nothing is uploaded or published.
 
 Verify a downloaded release with `gh attestation verify Mapper.exe --repo SoulFlaZ3R/mapper`.

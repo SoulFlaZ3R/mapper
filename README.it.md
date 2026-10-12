@@ -154,5 +154,7 @@ PySide6/Qt hanno licenze proprie; consulta [Qt licensing](https://doc.qt.io/qt-6
 se ridistribuisci il runtime incluso. Gli eseguibili non vengono mai inseriti nel repository: i push di un tag (`v*`)
 eseguono test, build e smoke test dell'exe su GitHub Actions, allegano un'attestazione di provenienza
 e il codice SHA-256 e li pubblicano come release. La firma digitale (SignPath) è predisposta ma disattivata.
+Un avvio manuale (**Actions → Build and Sign → Run workflow**) esegue solo test, build e avvio di prova
+dell'exe, poi lo scarta: non viene caricato né pubblicato nulla.
 
 Per verificare una release scaricata: `gh attestation verify Mapper.exe --repo SoulFlaZ3R/mapper`.
