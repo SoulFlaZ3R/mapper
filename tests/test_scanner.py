@@ -12,7 +12,7 @@ from scanner import count_items, root_label, scan_folder, snapshot
 class ScannerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name) / 'root'
+        self.root = Path(self.temp.name).resolve() / 'root'
         (self.root / 'nested').mkdir(parents=True)
         (self.root / 'nested' / 'report.TXT').write_text('report')
         (self.root / 'desktop.ini').write_text('ignored')

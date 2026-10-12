@@ -16,7 +16,9 @@ APP = QCoreApplication.instance() or QCoreApplication([])
 class BackendTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name) / 'root'
+        # Forma completa del percorso, come nell'app (su GitHub TEMP è RUNNER~1)
+        # Full path form, as in the app (on GitHub TEMP is RUNNER~1)
+        self.root = Path(self.temp.name).resolve() / 'root'
         self.root.mkdir()
         (self.root / 'nested').mkdir()
         (self.root / 'nested' / 'report.TXT').write_text('report')
@@ -185,6 +187,10 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(self.backend.isValidName('report (final).txt'))
         self.backend.fileAction('delete', str(Path(self.temp.name) / 'escape'), '')
         self.assertTrue(self.backend.state['error'])
+        (Path(self.temp.name) / 'outside.txt').write_text('keep')
+        self.backend.fileAction('delete', str(self.root / '..' / 'outside.txt'), '')
+        self.assertTrue(self.backend.state['error'])
+        self.assertTrue((Path(self.temp.name) / 'outside.txt').exists())
         self.backend.fileAction('delete', str(self.root), '')
         self.assertTrue(self.root.exists())
         self.assertTrue(self.backend.state['error'])

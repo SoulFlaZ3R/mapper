@@ -494,8 +494,10 @@ class MapperBackend(QObject):
             return False
 
     def _checked(self, path):
+        # Confronto su percorsi risolti: gestisce nomi brevi 8.3 (RUNNER~1), '..' e link
+        # Compare resolved paths: handles 8.3 short names (RUNNER~1), '..' and links
         root, target = Path(self._state['path']).resolve(), Path(path).absolute()
-        if not target.is_relative_to(root) or not target.resolve().is_relative_to(root):
+        if not target.resolve().is_relative_to(root):
             raise UserError('error_outside_root')
         return target
 

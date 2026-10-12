@@ -48,7 +48,7 @@ def names():
 
 try:
     with tempfile.TemporaryDirectory() as folder:
-        root = Path(folder) / 'Workspace'
+        root = Path(folder).resolve() / 'Workspace'
         (root / 'Design assets').mkdir(parents=True)
         (root / 'Documents').mkdir()
         for name in ['Brand guidelines.pdf', 'Roadmap.md', 'Notes.txt', 'Project.json', 'Cover.png', 'Research.csv']:
