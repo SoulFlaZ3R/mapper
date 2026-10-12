@@ -1,5 +1,7 @@
 # Mapper 1.5
 
+**English** · [Italiano](README.it.md)
+
 A Windows desktop app for exploring folders, finding files and exporting Unicode tree maps.
 Python handles the filesystem; **PySide6 + Qt Quick/QML** renders the interface.
 

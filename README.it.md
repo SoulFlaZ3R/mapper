@@ -1,0 +1,158 @@
+# Mapper 1.5
+
+[English](README.md) · **Italiano**
+
+Un'app desktop per Windows per esplorare cartelle, trovare file ed esportare mappe ad albero Unicode.
+Python gestisce il filesystem; l'interfaccia è realizzata con **PySide6 + Qt Quick/QML**.
+
+![Esplora di Mapper nel tema scuro](docs/screenshots/03-explorer-dark.png)
+
+## Screenshot
+
+| | |
+| --- | --- |
+| ![Schermata iniziale con le cartelle recenti](docs/screenshots/01-start.png) | ![Esplora con l'albero aperto, tema chiaro](docs/screenshots/02-explorer-light.png) |
+| **Avvio** — sfoglia, trascina una cartella o riapri una recente | **Esplora** — albero espandibile e panoramica dei tipi di file |
+| ![Risultati di ricerca con le corrispondenze evidenziate](docs/screenshots/04-search.png) | ![Filtro per tipo di file dalla legenda del grafico](docs/screenshots/05-filter-type.png) |
+| **Cerca** — corrispondenze evidenziate, con la posizione di ogni elemento | **Filtra per tipo** — clic sul grafico o sulla legenda |
+| ![Menu contestuale con le azioni sui file](docs/screenshots/06-context-menu.png) | ![Finestra Esporta mappa con l'anteprima dell'albero](docs/screenshots/07-export.png) |
+| **Azioni** — clic destro o ⋯ per le operazioni sui file | **Esporta mappa** — anteprima, copia o salvataggio come testo |
+| ![Impostazioni nel tema blu, in italiano](docs/screenshots/08-settings.png) | |
+| **Impostazioni** — cinque temi e cinque lingue, con anteprima dal vivo | |
+
+Gli screenshot sono generati da una cartella dimostrativa con `python build/make_screenshots.py`.
+
+## Come iniziare
+
+Mapper funziona su **Windows 10 e 11**.
+
+### Opzione 1 — Scarica l'app
+
+Quando è disponibile una release, scarica `Mapper.exe` dalla
+[pagina Releases](https://github.com/SoulFlaZ3R/mapper/releases) e aprilo con un doppio clic.
+Non serve installazione: è un unico file portatile. Ogni release riporta anche il codice SHA-256
+e un'attestazione di build di GitHub, per verificare che il file sia stato compilato da questo codice.
+
+Windows SmartScreen potrebbe avvisare di un editore sconosciuto, perché l'app non è ancora firmata
+digitalmente: scegli **Ulteriori informazioni → Esegui comunque**.
+
+### Opzione 2 — Avvialo dal codice sorgente
+
+1. Installa **Python 3.12 o più recente** da [python.org](https://www.python.org/downloads/windows/).
+   Durante l'installazione spunta **"Add python.exe to PATH"**.
+2. Scarica il codice: in questa pagina clicca **Code → Download ZIP** ed estrai l'archivio, oppure usa Git:
+
+   ```powershell
+   git clone https://github.com/SoulFlaZ3R/mapper.git
+   cd mapper
+   ```
+
+3. Apri PowerShell nella cartella del progetto (in Esplora risorse: **Maiusc + clic destro → Apri finestra di PowerShell qui**)
+   e crea un ambiente isolato:
+
+   ```powershell
+   py -m venv .venv
+   ```
+
+4. Installa le dipendenze (PySide6, qualche centinaio di MB) e avvia Mapper:
+
+   ```powershell
+   .venv\Scripts\python -m pip install -r requirements.txt
+   .venv\Scripts\python src/mapper.py
+   ```
+
+Le volte successive basta l'ultimo comando.
+
+Preferenze e cartelle recenti sono salvate in `src/config.json` (dal codice sorgente) oppure in
+`config.json` accanto a `Mapper.exe` (app). Restano sul tuo computer.
+
+## Funzionalità
+
+- **Mappatura in un passo**: Sfoglia, trascina una cartella sulla finestra, incolla un percorso o scegli una cartella recente; la mappatura parte subito
+- Albero virtualizzato con espandi/comprimi, espandi tutto/comprimi tutto e navigazione completa da tastiera; le cartelle aperte restano aperte dopo un aggiornamento o un'azione sui file
+- **Ricerca mentre scrivi** in tutta la mappa, con le corrispondenze evidenziate e la posizione di ogni risultato; *Mostra nell'albero* apre le cartelle che lo contengono e seleziona l'elemento
+- Grafico ad anello interattivo e legenda completa e scorrevole; clicca un tipo di file per filtrare, di nuovo (o sull'etichetta) per togliere il filtro
+- Scansione in background con avanzamento reale e possibilità di annullare
+- Azioni con clic destro (o ⋯): apri, mostra in Esplora risorse, copia percorso, taglia/copia/incolla, duplica, nuovo file/cartella, rinomina, elimina
+- Elimina sposta gli elementi nel **Cestino**; le copie non sovrascrivono mai (`nome - copia`, `nome - copia (2)` …); i nomi vengono controllati prima della conferma
+- **Esporta mappa**: anteprima, copia negli appunti o salvataggio come testo UTF-8; l'esportazione corrisponde esattamente all'albero mappato
+- Cinque temi (chiaro, scuro, blu, rosso, sistema) e cinque lingue (italiano, inglese, tedesco, francese, spagnolo), con anteprima dal vivo nelle Impostazioni
+- Uno stile unico e coerente per pulsanti, campi, menu, finestre di dialogo, suggerimenti e selettori; animazioni riducibili
+- Eseguibile portatile; preferenze e cartelle recenti in `config.json` accanto all'eseguibile
+
+La ricerca usa l'ultima mappatura. Premi F5 per aggiornare dopo modifiche fatte da altri programmi.
+Le cartelle non accessibili vengono saltate; i collegamenti simbolici e le junction NTFS non vengono attraversati.
+La finestra non si può chiudere mentre è in corso una copia, uno spostamento o un'eliminazione.
+
+## Scorciatoie da tastiera
+
+| Scorciatoia | Azione |
+| --- | --- |
+| Ctrl+O | Scegli una cartella |
+| Ctrl+L | Modifica il percorso |
+| F5 | Aggiorna la mappa |
+| Ctrl+F | Cerca |
+| Ctrl+E | Esporta mappa (anteprima, copia, salva) |
+| Ctrl+S | Salva la mappa con nome… |
+| Esc | Annulla mappatura/esportazione, azzera la ricerca |
+| ↑ ↓ ← → | Spostati, espandi e comprimi nell'albero |
+| Invio | Apri un file, espandi una cartella (in ricerca: mostrala nell'albero) |
+| F2 | Rinomina |
+| Ctrl+C / Ctrl+X / Ctrl+V | Copia, taglia, incolla |
+| Canc | Sposta nel Cestino (dopo conferma) |
+| Menu / Maiusc+F10 | Azioni sull'elemento selezionato |
+
+## Test e build
+
+```powershell
+python -m unittest discover -s tests -v
+python tests/smoke_ui.py
+pip install pyinstaller
+build/build.bat
+```
+
+I test unitari coprono lo scanner (righe dell'albero, avanzamento, annullamento, radici di unità, junction),
+gli aggiornamenti incrementali dell'albero, la ricerca e *Mostra nell'albero*, l'esportazione, le azioni
+sui file (Cestino, nomi univoci per le copie, rinomina delle sole maiuscole, protezione dalla sovrascrittura),
+la validazione, le preferenze, le cartelle recenti e la completezza delle traduzioni. Lo smoke test della UI
+carica il QML reale, apre ogni finestra e menu, cambia tema, cerca, filtra, esporta, verifica la
+virtualizzazione della lista e salva anteprime chiara/scura/compatta in `build/`.
+
+`build/mapper.spec` è l'unica definizione di build, usata sia da `build.bat` sia da GitHub Actions.
+Include solo i moduli Qt usati da Mapper (QtQuick, Controls, Dialogs, Effects, Layouts) ed esclude
+WebEngine, 3D, Charts, Multimedia e PDF (da 171 MB a circa 47 MB); disattiva UPX e incorpora le
+informazioni di versione di Windows.
+
+Risultato della build: `portable/Mapper.exe`. Per verificare l'avvio dell'eseguibile:
+
+```powershell
+portable/Mapper.exe --smoke-test
+```
+
+La build per Windows usa esplicitamente la libreria ICU di sistema richiesta da Qt.
+Così si evita un `icuuc.dll` in conflitto incluso in alcuni runtime Python.
+
+## Struttura
+
+```text
+src/mapper.py       Avvio dell'applicazione Qt e del QML
+src/backend.py      Modello della lista, lavori in background, azioni sui file e preferenze
+src/scanner.py      Scanner: un'unica visita per l'indice dell'esploratore e la mappa ad albero
+src/qml/Main.qml    Interfaccia, componenti condivisi, temi e animazioni
+src/Languages/      Cinque dizionari di traduzione (stesse chiavi)
+docs/screenshots/   Immagini del README (build/make_screenshots.py)
+tests/              Test unitari e smoke test del QML reale
+build/              Script di build, icona e manifest di Windows
+portable/           Eseguibile per Windows e note d'uso
+```
+
+## Licenza
+
+Codice di Mapper: [MIT](LICENSE), Mattia De Lillo.
+Font Inter inclusi: SIL Open Font License 1.1, © The Inter Project Authors ([src/fonts/OFL.txt](src/fonts/OFL.txt)).
+PySide6/Qt hanno licenze proprie; consulta [Qt licensing](https://doc.qt.io/qt-6/licensing.html)
+se ridistribuisci il runtime incluso. Gli eseguibili non vengono mai inseriti nel repository: i push di un tag (`v*`)
+eseguono test, build e smoke test dell'exe su GitHub Actions, allegano un'attestazione di provenienza
+e il codice SHA-256 e li pubblicano come release. La firma digitale (SignPath) è predisposta ma disattivata.
+
+Per verificare una release scaricata: `gh attestation verify Mapper.exe --repo SoulFlaZ3R/mapper`.
