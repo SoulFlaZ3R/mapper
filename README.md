@@ -3,6 +3,23 @@
 A Windows desktop app for exploring folders, finding files and exporting Unicode tree maps.
 Python handles the filesystem; **PySide6 + Qt Quick/QML** renders the interface.
 
+![Mapper explorer in the dark theme](docs/screenshots/03-explorer-dark.png)
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Start screen with recent folders](docs/screenshots/01-start.png) | ![Explorer with an expanded tree, light theme](docs/screenshots/02-explorer-light.png) |
+| **Start** — browse, drop a folder or reopen a recent one | **Explorer** — expandable tree and file-type overview |
+| ![Search results with highlighted matches](docs/screenshots/04-search.png) | ![Filter by file type from the chart legend](docs/screenshots/05-filter-type.png) |
+| **Search** — matches highlighted, with each item's location | **Filter by type** — click the chart or legend |
+| ![Context menu with file actions](docs/screenshots/06-context-menu.png) | ![Export map dialog with tree preview](docs/screenshots/07-export.png) |
+| **Actions** — right-click or ⋯ for file operations | **Export map** — preview, copy or save as text |
+| ![Settings dialog in the blue theme, Italian](docs/screenshots/08-settings.png) | |
+| **Settings** — five themes and five languages, live preview | |
+
+Screenshots are generated from a demo folder with `python build/make_screenshots.py`.
+
 ## Features
 
 - **Map in one step**: Browse, drag a folder onto the window, paste a path or pick a recent folder; mapping starts immediately
@@ -86,6 +103,7 @@ src/backend.py      List model, background jobs, filesystem actions and preferen
 src/scanner.py      Scanner: one traversal for the explorer index and the tree map
 src/qml/Main.qml    Interface, shared components, themes and motion
 src/Languages/      Five translation dictionaries (same keys)
+docs/screenshots/   README images (build/make_screenshots.py)
 tests/              Unit tests and real QML smoke test
 build/              Build script, icon and Windows manifest
 portable/           Windows executable and usage notes

@@ -371,6 +371,7 @@ ApplicationWindow {
     // Tooltip unico e coerente col tema / Single, theme-consistent tooltip
     ToolTip {
         id: tip
+        objectName: "toolTip"
         property Item target: null
         property real anchorX: 0
         property real anchorY: 0
