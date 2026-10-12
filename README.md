@@ -20,6 +20,50 @@ Python handles the filesystem; **PySide6 + Qt Quick/QML** renders the interface.
 
 Screenshots are generated from a demo folder with `python build/make_screenshots.py`.
 
+## Get started
+
+Mapper runs on **Windows 10 and 11**.
+
+### Option 1 — Download the app
+
+When a release is available, download `Mapper.exe` from the
+[Releases page](https://github.com/SoulFlaZ3R/mapper/releases) and double-click it.
+No installation is needed: it is a single portable file. Each release also lists a SHA-256
+checksum and a GitHub build attestation, so you can check the file was built from this code.
+
+Windows SmartScreen may warn about an unknown publisher because the app is not code-signed yet:
+choose **More info → Run anyway**.
+
+### Option 2 — Run from the source code
+
+1. Install **Python 3.12 or newer** from [python.org](https://www.python.org/downloads/windows/).
+   During setup, tick **"Add python.exe to PATH"**.
+2. Get the code: click **Code → Download ZIP** on this page and extract it, or use Git:
+
+   ```powershell
+   git clone https://github.com/SoulFlaZ3R/mapper.git
+   cd mapper
+   ```
+
+3. Open PowerShell in the project folder (in Explorer: **Shift + right-click → Open PowerShell window here**)
+   and create an isolated environment:
+
+   ```powershell
+   py -m venv .venv
+   ```
+
+4. Install the dependencies (PySide6, a few hundred MB) and start Mapper:
+
+   ```powershell
+   .venv\Scripts\python -m pip install -r requirements.txt
+   .venv\Scripts\python src/mapper.py
+   ```
+
+Next time, only the last command is needed.
+
+Your preferences and recent folders are saved in `src/config.json` (source) or in
+`config.json` next to `Mapper.exe` (app). They stay on your computer.
+
 ## Features
 
 - **Map in one step**: Browse, drag a folder onto the window, paste a path or pick a recent folder; mapping starts immediately
@@ -37,15 +81,6 @@ Screenshots are generated from a demo folder with `python build/make_screenshots
 Search uses the latest map. Press F5 to refresh changes made by other applications.
 Inaccessible folders are skipped; symbolic links and NTFS junctions are not traversed.
 The window cannot close while a copy/move/delete is still running.
-
-## Run from source
-
-Python 3.12 or newer:
-
-```powershell
-pip install -r requirements.txt
-python src/mapper.py
-```
 
 ## Keyboard shortcuts
 
