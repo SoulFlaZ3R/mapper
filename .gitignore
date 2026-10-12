@@ -1,0 +1,35 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Build artifacts
+build/temp/
+build/*.spec
+!build/mapper.spec
+dist/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Project specific
+CLAUDE.md
+portable/Mapper.exe
+mapper_output.txt
+.venv/
+.uv-cache/
+portable/config.json
+build/preview-qt-*.png
+build/diagnostic/
+portable/mapper-startup.log
+# Preferenze locali e cartelle recenti / Local preferences and recent folders
+src/config.json
+
+# Screenshot locali di debug / Local debug screenshots
+bugs/
