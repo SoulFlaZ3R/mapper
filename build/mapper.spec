@@ -16,20 +16,38 @@ NUMBERS = tuple(int(n) for n in VERSION.split('.')) + (0,)
 
 # Moduli Qt che Mapper non usa: PyInstaller li includerebbe tutti (WebEngine da solo ~195 MB).
 # Qt modules Mapper never uses: PyInstaller would bundle all of them (WebEngine alone ~195 MB).
+# Stile Basic (QT_QUICK_CONTROLS_STYLE in mapper.py): gli altri stili e Qt.labs non servono.
+# Basic style (QT_QUICK_CONTROLS_STYLE in mapper.py): other styles and Qt.labs are not needed.
 UNUSED_QT = re.compile(r'''(?ix)
-    webengine | webchannel | websockets | webview | qt6pdf | /qtpdf | pdfquick
-  | qt3d | quick3d | qt6charts | /qtcharts | graphs | datavisualization
+    webengine | webchannel | websockets | webview | pdf
+  | qt3d | qt63d | quick3d | /scene[23]d/ | qt6charts | /qtcharts | graphs | datavisualization
   | location | positioning | multimedia | spatialaudio | texttospeech | sensors
   | qt5compat | core5compat | virtualkeyboard | scxml | statemachine | remoteobjects
   | qt6test | /qttest | quicktest | lottie | wayland | designer | sql | serialport | bluetooth | nfc
-  | quicktimeline | quickparticles | /particles/ | shapes/designhelpers | vectorimage | effectmaker
-  | opengl32sw | /translations/ | /qtopengl | qt6widgets | /qtwidgets | quickwidgets
-  | /controls/(material|universal|imagine|fluentwinui3|windows|macos|ios)/
+  | quicktimeline | /timeline/ | quickparticles | /particles/ | quickshapes | /shapes/ | vectorimage | effectmaker
+  | opengl32sw | /translations/ | /qtopengl | qt6openglwidgets | qt6widgets | /qtwidgets | quickwidgets
+  | shadertools | qt6labs | /qt/labs/ | designsupport | localstorage | xmllistmodel | qmlnetwork | /qml/qtnetwork/
+  | /qtquick/tooling/ | /qmltooling/ | /generic/ | /networkinformation/ | /tls/ | libssl | qdirect2d
+  | /imageformats/q(gif|icns|jpeg|tga|tiff|wbmp|webp)
+  | quickcontrols2(material|universal|imagine|fluentwinui3|windows|fusion|native) | quicknativestyle | /nativestyle/
+  | /controls/(material|universal|imagine|fluentwinui3|windows|macos|ios|fusion|native)/
 ''')
 
 
 def keep(entry):
     return not UNUSED_QT.search('/' + entry[0].replace('\\', '/'))
+
+
+def check_dependencies(kept, dropped):
+    """Blocca la build se un file incluso importa una DLL esclusa da UNUSED_QT.
+    Stops the build if a bundled file imports a DLL excluded by UNUSED_QT."""
+    from PyInstaller.depend.bindepend import get_imports
+    kept_names = {os.path.basename(name).lower() for name, _, _ in kept}
+    dropped_names = {os.path.basename(name).lower() for name, _, _ in dropped} - kept_names
+    broken = sorted(f'{name} -> {dll}' for name, src, _ in kept if src.lower().endswith(('.dll', '.pyd'))
+                    for dll, _ in get_imports(src) if dll.lower() in dropped_names)
+    if broken:
+        raise SystemExit('UNUSED_QT excludes DLLs still required:\n  ' + '\n  '.join(broken))
 
 
 binaries = []
@@ -51,7 +69,9 @@ a = Analysis(
     noarchive=False,
     optimize=1,
 )
-a.binaries = [entry for entry in a.binaries if keep(entry)]
+binaries_kept = [entry for entry in a.binaries if keep(entry)]
+check_dependencies(binaries_kept, [entry for entry in a.binaries if not keep(entry)])
+a.binaries = binaries_kept
 a.datas = [entry for entry in a.datas if keep(entry)]
 pyz = PYZ(a.pure)
 
