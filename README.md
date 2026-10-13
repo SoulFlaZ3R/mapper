@@ -121,9 +121,10 @@ dialog and menu, switches themes, searches, filters, exports, checks list virtua
 writes light/dark/compact previews under `build/`.
 
 `build/mapper.spec` is the single build definition used by `build.bat` and GitHub Actions.
-It keeps only the Qt modules Mapper uses (QtQuick, Controls, Dialogs, Effects, Layouts), which
-drops WebEngine, 3D, Charts, Multimedia and PDF (171 MB → about 47 MB), disables UPX and embeds
-Windows version information.
+It keeps only the Qt modules Mapper uses (QtQuick, Controls with the Basic style, Dialogs, Effects,
+Layouts), which drops WebEngine, 3D, Charts, Multimedia, PDF, the other Controls styles and the QML
+debugging plugins (171 MB → about 32 MB). The build stops if an excluded DLL is still needed by a
+bundled file. UPX stays off and Windows version information is embedded.
 
 Build output: `portable/Mapper.exe`. Test packaged startup with:
 
@@ -133,6 +134,37 @@ portable/Mapper.exe --smoke-test
 
 The Windows build explicitly selects the system ICU library required by Qt.
 This avoids a conflicting `icuuc.dll` from some bundled Python runtimes.
+
+## Releases
+
+Versions follow `MAJOR.MINOR.PATCH`: PATCH for fixes, MINOR for a new feature, MAJOR after ten features.
+The version lives only in `VERSION` in `src/backend.py`; every change is listed in [CHANGELOG.md](CHANGELOG.md).
+
+1. While working, describe each change under `## [Unreleased]` in `CHANGELOG.md`.
+2. On an up-to-date `main` with no uncommitted changes, prepare the release (example for a new feature):
+
+   ```powershell
+   .venv\Scripts\python build/release.py minor
+   ```
+
+   Use `patch`, `minor`, `major` or an exact version such as `1.6.0`; add `--dry-run` for a preview.
+   The script updates `VERSION`, the README titles and `portable/README.txt`, turns `[Unreleased]`
+   into the new version with today's date, runs the tests, then creates the release commit and the
+   `vX.Y.Z` tag on your computer. It never pushes anything.
+3. Rebuild the portable exe with `build/build.bat` and check it with `portable/Mapper.exe --smoke-test`.
+4. Publish with the commands printed by the script:
+
+   ```powershell
+   git push origin main
+   git push origin v1.6.0
+   ```
+
+   The tag starts GitHub Actions. The run stops if the tag does not match `VERSION`; otherwise it
+   tests, builds and smoke-tests the exe and publishes the release: `Mapper.exe`, its SHA-256
+   checksum, a build-provenance attestation and the version's CHANGELOG section as text.
+
+After pushing `main` and before pushing the tag, **Actions → Build and Sign → Run workflow** runs the
+same checks and build without publishing anything, and shows a preview of the release text in the run summary.
 
 ## Structure
 
@@ -144,7 +176,8 @@ src/qml/Main.qml    Interface, shared components, themes and motion
 src/Languages/      Five translation dictionaries (same keys)
 docs/screenshots/   README images (build/make_screenshots.py)
 tests/              Unit tests and real QML smoke test
-build/              Build script, icon and Windows manifest
+build/              Build and release scripts, icon and Windows manifest
+CHANGELOG.md        Changes of every version (text of the GitHub releases)
 portable/           Windows executable and usage notes
 ```
 

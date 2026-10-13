@@ -23,11 +23,22 @@ jobs:
       # Solo il push di un tag pubblica qualcosa / Only a tag push publishes anything
       RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+
+      # Il tag deve coincidere con VERSION in src/backend.py; il testo della release
+      # è la sezione del CHANGELOG di quella versione (build/release.py notes).
+      # The tag must match VERSION in src/backend.py; the release text is that
+      # version's CHANGELOG section (build/release.py notes).
+      - name: Check version and release notes
+        id: notes
+        run: |
+          if ($env:RELEASE -eq 'true') { python build/release.py notes --tag $env:GITHUB_REF_NAME --out release-notes.md }
+          else { python build/release.py notes --out release-notes.md }
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
@@ -50,12 +61,14 @@ jobs:
         if: env.RELEASE != 'true'
         run: |
           "Build, tests and smoke test passed. The exe was discarded: nothing was uploaded or published." | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "`n## Release notes preview (Mapper ${{ steps.notes.outputs.version }})`n" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          Get-Content release-notes.md | Out-File -Append $env:GITHUB_STEP_SUMMARY
           Remove-Item portable/Mapper.exe
 
       - name: Upload unsigned artifact
         if: env.RELEASE == 'true'
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Mapper-unsigned
           path: portable/Mapper.exe
@@ -87,7 +100,7 @@ jobs:
       # Prova pubblica che l'exe nasce da questo sorgente / Public proof the exe was built from this source
       - name: Attest build provenance
         if: env.RELEASE == 'true'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: portable/Mapper.exe
 
@@ -96,12 +109,22 @@ jobs:
         run: |
           $hash = (Get-FileHash portable/Mapper.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  Mapper.exe" | Out-File -Encoding ascii portable/Mapper.exe.sha256
+          # Checksum e verifica in fondo al testo della release / Checksum and verification at the end of the release text
+          @(
+            ''
+            '---'
+            ('**SHA-256** `Mapper.exe`: `{0}`' -f $hash)
+            ''
+            ('Verify the build provenance: `gh attestation verify Mapper.exe --repo {0}`' -f $env:GITHUB_REPOSITORY)
+          ) | Out-File -Append -Encoding utf8 release-notes.md
 
       - name: Create GitHub Release
         if: env.RELEASE == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
+          name: Mapper ${{ steps.notes.outputs.version }}
+          body_path: release-notes.md
+          fail_on_unmatched_files: true
           files: |
             portable/Mapper.exe
             portable/Mapper.exe.sha256
-          generate_release_notes: true
