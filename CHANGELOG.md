@@ -7,6 +7,8 @@ The section of each version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-14
+
 First public release.
 
 ### Added
@@ -26,4 +28,5 @@ First public release.
 
 - File actions no longer fail as "outside the mapped folder" when the folder path uses Windows 8.3 short names (for example `RUNNER~1`)
 
-[Unreleased]: https://github.com/SoulFlaZ3R/mapper/commits/main
+[Unreleased]: https://github.com/SoulFlaZ3R/mapper/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/SoulFlaZ3R/mapper/releases/tag/v1.5.0
