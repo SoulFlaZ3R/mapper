@@ -17,7 +17,8 @@ Esporta mappa: anteprima, copia negli appunti o salva come testo UTF-8.
 Usa F5 per aggiornare dopo modifiche fatte fuori da Mapper.
 Le cartelle non accessibili, i collegamenti simbolici e le junction vengono saltati.
 Impostazioni: 5 temi, 5 lingue, riduzione animazioni (anteprima dal vivo).
-Preferenze e cartelle recenti sono salvate in config.json accanto all'eseguibile.
+Preferenze e cartelle recenti sono salvate in %APPDATA%\Mapper (nessun file accanto all'exe).
+Per l'uso da chiavetta: crea un config.json vuoto accanto a Mapper.exe.
 
 ENGLISH
 
@@ -35,7 +36,8 @@ Export map: preview, copy to the clipboard or save as UTF-8 text.
 Press F5 to refresh changes made outside Mapper.
 Inaccessible folders, symbolic links and junctions are skipped.
 Settings: 5 themes, 5 languages and reduced motion (live preview).
-Preferences and recent folders are saved in config.json beside the executable.
+Preferences and recent folders are saved in %APPDATA%\Mapper (no file next to the exe).
+For USB use: create an empty config.json next to Mapper.exe.
 
 SHORTCUTS / SCORCIATOIE
 Ctrl+O: browse / sfoglia

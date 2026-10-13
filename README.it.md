@@ -63,8 +63,10 @@ digitalmente: scegli **Ulteriori informazioni → Esegui comunque**.
 
 Le volte successive basta l'ultimo comando.
 
-Preferenze e cartelle recenti sono salvate in `src/config.json` (dal codice sorgente) oppure in
-`config.json` accanto a `Mapper.exe` (app). Restano sul tuo computer.
+Preferenze e cartelle recenti restano sul tuo computer. L'app le salva nella cartella nascosta
+`%APPDATA%\Mapper`, quindi accanto a `Mapper.exe` (per esempio sul Desktop) non compare nessun file.
+Per portarle su una chiavetta, crea un `config.json` vuoto accanto a `Mapper.exe`: l'app userà quel file.
+Avviando dal codice sorgente sono salvate in `src/config.json`.
 
 ## Funzionalità
 
@@ -78,7 +80,7 @@ Preferenze e cartelle recenti sono salvate in `src/config.json` (dal codice sorg
 - **Esporta mappa**: anteprima, copia negli appunti o salvataggio come testo UTF-8; l'esportazione corrisponde esattamente all'albero mappato
 - Cinque temi (chiaro, scuro, blu, rosso, sistema) e cinque lingue (italiano, inglese, tedesco, francese, spagnolo), con anteprima dal vivo nelle Impostazioni
 - Uno stile unico e coerente per pulsanti, campi, menu, finestre di dialogo, suggerimenti e selettori; animazioni riducibili
-- Eseguibile portatile; preferenze e cartelle recenti in `config.json` accanto all'eseguibile
+- Eseguibile portatile, senza installazione; preferenze in `%APPDATA%\Mapper`, oppure accanto all'exe per l'uso da chiavetta
 
 La ricerca usa l'ultima mappatura. Premi F5 per aggiornare dopo modifiche fatte da altri programmi.
 Le cartelle non accessibili vengono saltate; i collegamenti simbolici e le junction NTFS non vengono attraversati.

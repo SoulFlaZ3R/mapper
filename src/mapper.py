@@ -58,8 +58,11 @@ if __name__ == '__main__':
         import traceback
         import tempfile
         details = traceback.format_exc()
-        log_dir = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent / 'build'
+        # Log in %APPDATA%/Mapper (exe) o in build/ (sorgente) / Log in %APPDATA%/Mapper (exe) or build/ (source)
+        from backend import data_dir
+        log_dir = data_dir() if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent / 'build'
         try:
+            log_dir.mkdir(parents=True, exist_ok=True)
             (log_dir / 'mapper-startup.log').write_text(details, encoding='utf-8')
         except OSError:
             (Path(tempfile.gettempdir()) / 'mapper-startup.log').write_text(details, encoding='utf-8')

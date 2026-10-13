@@ -7,7 +7,8 @@ import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from PySide6.QtCore import QCoreApplication, QUrl
-from backend import MapperBackend
+from unittest import mock
+from backend import MapperBackend, config_location
 from scanner import scan_folder
 
 APP = QCoreApplication.instance() or QCoreApplication([])
@@ -245,6 +246,37 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(self.backend.state['scanned'])
         self.assertEqual(self.backend.state['path'], str(self.root))
         self.assertEqual(self.backend.model.rowCount(), 2)
+
+class ConfigLocationTests(unittest.TestCase):
+    """Exe: preferenze in %APPDATA%/Mapper, accanto all'exe solo se config.json esiste già (chiavetta)."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        base = Path(self.temp.name).resolve()
+        self.desktop, self.appdata = base / 'Desktop', base / 'AppData'
+        self.desktop.mkdir()
+        self.patches = [mock.patch.object(sys, 'frozen', True, create=True),
+                        mock.patch.object(sys, 'executable', str(self.desktop / 'Mapper.exe')),
+                        mock.patch.dict('os.environ', {'APPDATA': str(self.appdata)})]
+        for patch in self.patches:
+            patch.start()
+
+    def tearDown(self):
+        for patch in reversed(self.patches):
+            patch.stop()
+        self.temp.cleanup()
+
+    def test_exe_keeps_preferences_out_of_its_folder(self):
+        location = config_location()
+        self.assertEqual(location, self.appdata / 'Mapper' / 'config.json')
+        backend = MapperBackend(location)
+        backend.preferences('dark', 'en', False)
+        backend.shutdown()
+        self.assertTrue(location.is_file())
+        self.assertEqual(list(self.desktop.iterdir()), [])
+
+    def test_existing_config_next_to_exe_enables_usb_mode(self):
+        (self.desktop / 'config.json').write_text('{}', encoding='utf-8')
+        self.assertEqual(config_location(), self.desktop / 'config.json')
 
 
 if __name__ == '__main__':

@@ -63,8 +63,10 @@ choose **More info → Run anyway**.
 
 Next time, only the last command is needed.
 
-Your preferences and recent folders are saved in `src/config.json` (source) or in
-`config.json` next to `Mapper.exe` (app). They stay on your computer.
+Preferences and recent folders stay on your computer. The app saves them in the hidden folder
+`%APPDATA%\Mapper`, so no file appears next to `Mapper.exe` (for example on your Desktop).
+To carry them on a USB stick, create an empty `config.json` next to `Mapper.exe`: the app then uses that file.
+When run from source they are saved in `src/config.json`.
 
 ## Features
 
@@ -78,7 +80,7 @@ Your preferences and recent folders are saved in `src/config.json` (source) or i
 - **Export map**: preview, copy to the clipboard or save as UTF-8 text; the export is exactly the mapped tree
 - Five themes (light, dark, blue, red, system) and five languages (Italian, English, German, French, Spanish), with live preview in Settings
 - One consistent style for buttons, fields, menus, dialogs, tooltips and selectors; optional reduced motion
-- Portable executable; preferences and recent folders in `config.json` beside the executable
+- Portable executable, no installation; preferences in `%APPDATA%\Mapper`, or next to the exe for USB use
 
 Search uses the latest map. Press F5 to refresh changes made by other applications.
 Inaccessible folders are skipped; symbolic links and NTFS junctions are not traversed.

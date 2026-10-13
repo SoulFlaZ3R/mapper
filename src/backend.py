@@ -23,7 +23,30 @@ PREVIEW_LINES = 1200
 MAX_RECENT = 6
 
 BASE = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
-CONFIG = (Path(sys.executable).parent if getattr(sys, 'frozen', False) else BASE) / 'config.json'
+
+
+def data_dir():
+    """
+    Cartella dati nascosta dell'utente: %APPDATA%/Mapper (niente file accanto all'exe).
+    Hidden per-user data folder: %APPDATA%/Mapper (no files next to the exe).
+    """
+    return Path(os.environ.get('APPDATA') or Path.home()) / 'Mapper'
+
+
+def config_location():
+    """
+    Exe: config.json accanto all'exe solo se esiste già (modalità chiavetta), altrimenti %APPDATA%.
+    Sorgente: src/config.json.
+    Exe: config.json next to the exe only if it already exists (USB mode), otherwise %APPDATA%.
+    Source: src/config.json.
+    """
+    if not getattr(sys, 'frozen', False):
+        return BASE / 'config.json'
+    portable = Path(sys.executable).parent / 'config.json'
+    return portable if portable.is_file() else data_dir() / 'config.json'
+
+
+CONFIG = config_location()
 
 
 class UserError(Exception):
@@ -192,6 +215,7 @@ class MapperBackend(QObject):
         prefs = dict(theme=self._state['theme'], language=self._state['language'],
                      reducedMotion=self._state['reducedMotion'], recent=self._recent)
         try:
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
             self.config_path.write_text(json.dumps(prefs, indent=2, ensure_ascii=False), encoding='utf-8')
         except OSError as exc:
             self._error(exc)
