@@ -480,6 +480,7 @@ ApplicationWindow {
         onAccepted: backend.exportDiff(selectedFile.toString(), compareDialog.format, compareDialog.redact)
     }
     Connections { target: backend; function onComparisonReady() { compareDialog.open() } }
+    Connections { target: backend; function onRunRequested(path) { runDialog.path = path; runDialog.open() } }
     FileDialog {
         id: saveDialog
         title: win.t("export_map"); fileMode: FileDialog.SaveFile
@@ -1394,6 +1395,18 @@ ApplicationWindow {
         onAccepted: backend.fileAction("delete", win.targetPath, "")
         contentItem: Label {
             text: win.fmt("confirm_delete", { name: win.baseName(win.targetPath) })
+            wrapMode: Text.WordWrap; color: win.pal.ink
+        }
+    }
+    // Aprire un programma lo esegue: conferma esplicita / Opening a program runs it: explicit confirmation
+    SoftDialog {
+        id: runDialog; objectName: "runDialog"
+        property string path: ""
+        title: win.t("run_program_title")
+        acceptText: win.t("run_program_accept"); acceptGlyph: "\uE768"; destructive: true
+        onAccepted: backend.runProgram(path)
+        contentItem: Label {
+            text: win.fmt("run_program_text", { name: win.baseName(runDialog.path) })
             wrapMode: Text.WordWrap; color: win.pal.ink
         }
     }

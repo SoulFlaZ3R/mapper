@@ -193,5 +193,8 @@
     "all_excluded_title": "Everything here is excluded by your rules",
     "unreadable_title": "This folder cannot be read",
     "unreadable_hint": "Windows denied access or the path is no longer available.",
-    "show_details": "Show details"
+    "show_details": "Show details",
+    "run_program_title": "Run this program?",
+    "run_program_text": "“{name}” is a program or script: opening it runs it on this computer. Continue only if you trust where it comes from.",
+    "run_program_accept": "Run"
 }

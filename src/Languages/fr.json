@@ -193,5 +193,8 @@
     "all_excluded_title": "Tout le contenu est exclu par vos règles",
     "unreadable_title": "Ce dossier est illisible",
     "unreadable_hint": "Windows a refusé l’accès ou le chemin n’est plus disponible.",
-    "show_details": "Afficher les détails"
+    "show_details": "Afficher les détails",
+    "run_program_title": "Exécuter ce programme ?",
+    "run_program_text": "« {name} » est un programme ou un script : l’ouvrir l’exécute sur cet ordinateur. Continuez seulement si vous faites confiance à sa provenance.",
+    "run_program_accept": "Exécuter"
 }

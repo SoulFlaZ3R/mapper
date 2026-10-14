@@ -193,5 +193,8 @@
     "all_excluded_title": "Todo el contenido está excluido por tus reglas",
     "unreadable_title": "No se puede leer esta carpeta",
     "unreadable_hint": "Windows denegó el acceso o la ruta ya no está disponible.",
-    "show_details": "Mostrar detalles"
+    "show_details": "Mostrar detalles",
+    "run_program_title": "¿Ejecutar este programa?",
+    "run_program_text": "«{name}» es un programa o un script: abrirlo lo ejecuta en este equipo. Continúa solo si confías en su origen.",
+    "run_program_accept": "Ejecutar"
 }

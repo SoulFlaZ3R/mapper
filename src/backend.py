@@ -35,6 +35,42 @@ MAX_ERRORS_SHOWN = 500
 BASE = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 
 
+# Programmi e script: "Apri" li esegue, quindi si chiede conferma prima
+# Programs and scripts: "Open" runs them, so the user confirms first
+PROGRAM_EXTENSIONS = frozenset((
+    '.exe', '.com', '.bat', '.cmd', '.scr', '.pif', '.cpl', '.msi', '.msp', '.msc', '.ps1', '.psm1', '.vbs', '.vbe',
+    '.js', '.jse', '.wsf', '.wsh', '.hta', '.jar', '.lnk', '.url', '.reg', '.scf', '.application', '.appref-ms'))
+
+
+def is_program(path):
+    """File che Windows eseguirebbe all'apertura / File Windows would run when opened."""
+    return Path(path).suffix.lower() in PROGRAM_EXTENSIONS and not os.path.isdir(extended(str(path)))
+
+
+def explorer_path():
+    """
+    Percorso assoluto di explorer.exe nella cartella di Windows. Con il solo nome Windows lo cercherebbe
+    prima nella cartella dell'exe e in quella corrente (un explorer.exe lasciato in Download verrebbe avviato).
+    Absolute path of explorer.exe in the Windows folder. With the bare name Windows would search the exe's
+    folder and the current folder first (an explorer.exe dropped in Downloads would be started).
+    """
+    import ctypes
+    buffer = ctypes.create_unicode_buffer(1024)
+    if not ctypes.windll.kernel32.GetSystemWindowsDirectoryW(buffer, len(buffer)):
+        raise OSError('Windows directory not found')
+    return os.path.join(buffer.value, 'explorer.exe')
+
+
+def redact_home(text):
+    """Sostituisce la cartella utente (contiene il nome) con %USERPROFILE% / Replaces the user folder (holds the name)."""
+    home = os.path.normpath(os.path.expanduser('~'))
+    if len(home) < 4:
+        return text
+    # Vale con \ e con / (Qt usa /), non dentro un nome più lungo / Works with \ and / (Qt uses /), not inside a longer name
+    pattern = r'[\\/]'.join(re.escape(part) for part in re.split(r'[\\/]', home)) + r'(?![\w.\-])'
+    return re.sub(pattern, lambda _: '%USERPROFILE%', text, flags=re.IGNORECASE)
+
+
 def data_dir():
     """
     Cartella dati nascosta dell'utente: %APPDATA%/Mapper (niente file accanto all'exe).
@@ -255,6 +291,7 @@ class MapperBackend(QObject):
     recentChanged = Signal()
     revealed = Signal(int)
     comparisonReady = Signal()
+    runRequested = Signal(str)
 
     def __init__(self, config_path=None):
         super().__init__()
@@ -820,8 +857,20 @@ class MapperBackend(QObject):
     # ── Azioni sui file / File actions ──────────────────────────────────
     @Slot(str)
     def openPath(self, path):
+        """Apre con l'app predefinita; i programmi chiedono prima conferma / Opens with the default app; programs ask first."""
+        self._open(path, confirmed=False)
+
+    @Slot(str)
+    def runProgram(self, path):
+        """Apre un programma dopo la conferma dell'utente / Opens a program after the user confirmed."""
+        self._open(path, confirmed=True)
+
+    def _open(self, path, confirmed):
         try:
             target = self._checked(path)[0]
+            if not confirmed and is_program(target):
+                self.runRequested.emit(str(target))
+                return
             if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(target))):
                 raise OSError(str(target))
         except (OSError, UserError) as exc:
@@ -833,7 +882,8 @@ class MapperBackend(QObject):
         try:
             target = self._checked(path)[0]
             if sys.platform == 'win32':
-                subprocess.Popen(['explorer', f'/select,{target}'])
+                # Programma fisso, argomenti in lista, nessuna shell / Fixed program, list arguments, no shell
+                subprocess.Popen([explorer_path(), f'/select,{target}'])  # noqa: S603
             elif not QDesktopServices.openUrl(QUrl.fromLocalFile(str(target.parent))):
                 raise OSError(str(target.parent))
         except (OSError, UserError) as exc:

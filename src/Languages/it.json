@@ -193,5 +193,8 @@
     "all_excluded_title": "Tutto il contenuto è escluso dalle tue regole",
     "unreadable_title": "Questa cartella non si può leggere",
     "unreadable_hint": "Windows ha negato l’accesso oppure il percorso non è più disponibile.",
-    "show_details": "Mostra dettagli"
+    "show_details": "Mostra dettagli",
+    "run_program_title": "Eseguire questo programma?",
+    "run_program_text": "“{name}” è un programma o uno script: aprirlo lo esegue su questo computer. Continua solo se ti fidi della sua provenienza.",
+    "run_program_accept": "Esegui"
 }

@@ -2,17 +2,45 @@
 import os
 import sys
 from pathlib import Path
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QCoreApplication, QLibraryInfo, QTimer, QUrl
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from backend import VERSION, MapperBackend
+
+
+def bundled_only(paths, bundled):
+    """
+    Percorsi di moduli QML ammessi: solo risorse interne e la cartella inclusa nel pacchetto.
+    Qt mette per prima la cartella dell'eseguibile (es. Download): un modulo QML lasciato lì verrebbe caricato.
+    Allowed QML import paths: only internal resources and the bundled folder.
+    Qt puts the executable's folder first (e.g. Downloads): a QML module dropped there would be loaded.
+    """
+    def key(path):
+        return os.path.normcase(os.path.normpath(path))
+    return [p for p in paths if p.startswith('qrc:') or key(p) == key(bundled)]
+
+
+def exe_folder_excluded(app, engine):
+    """Vero se Qt non cerca plugin né moduli QML nella cartella dell'eseguibile / True if Qt never searches the exe's folder."""
+    def key(path):
+        return os.path.normcase(os.path.normpath(path))
+    return key(app.applicationDirPath()) not in {key(p) for p in app.libraryPaths() + engine.importPathList()}
 
 
 def create_app():
     # Stile Basic via variabile d'ambiente: niente QtWidgets/QtQuickControls2 nel pacchetto
     # Basic style via environment: keeps QtWidgets/QtQuickControls2 out of the bundle
     os.environ['QT_QUICK_CONTROLS_STYLE'] = 'Basic'
-    app = QGuiApplication.instance() or QGuiApplication(sys.argv)
+    # Plugin Qt solo dal pacchetto, mai dalla cartella dell'exe (es. una DLL lasciata in Download).
+    # Il plugin di piattaforma si carica mentre l'app nasce: gli si passa la cartella come argomento
+    # (non come variabile d'ambiente, che passerebbe ai programmi aperti da Mapper); gli altri dopo.
+    # Qt plugins only from the bundle, never from the exe's folder (e.g. a DLL dropped in Downloads).
+    # The platform plugin loads while the app is created: its folder is an argument (not an environment
+    # variable, which programs opened from Mapper would inherit); the others are fixed right after.
+    plugins = QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)
+    app = QGuiApplication.instance() or QGuiApplication(
+        [*sys.argv, '-platformpluginpath', os.path.join(plugins, 'platforms')])
+    QCoreApplication.setLibraryPaths([plugins])
     app.setApplicationName('Mapper')
     app.setOrganizationName('Mapper')
     app.setApplicationVersion(VERSION)
@@ -27,6 +55,7 @@ def create_app():
     app.setWindowIcon(QIcon(str(icon)))
     backend = MapperBackend()
     engine = QQmlApplicationEngine()
+    engine.setImportPathList(bundled_only(engine.importPathList(), QLibraryInfo.path(QLibraryInfo.LibraryPath.QmlImportsPath)))
     diagnostics = []
     def report(errors):
         diagnostics.extend(error.toString() for error in errors)
@@ -58,9 +87,10 @@ if __name__ == '__main__':
     except Exception:
         import traceback
         import tempfile
-        details = traceback.format_exc()
+        # Il nome utente nei percorsi non finisce nel log / The user name in paths stays out of the log
+        from backend import data_dir, redact_home
+        details = redact_home(traceback.format_exc())
         # Log in %APPDATA%/Mapper (exe) o in build/ (sorgente) / Log in %APPDATA%/Mapper (exe) or build/ (source)
-        from backend import data_dir
         log_dir = data_dir() if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent / 'build'
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
@@ -74,6 +104,10 @@ if __name__ == '__main__':
             ctypes.windll.user32.MessageBoxW(None, details, 'Mapper', 0x10)
         raise
     if '--smoke-test' in sys.argv:
+        if not exe_folder_excluded(app, engine):
+            print('Qt plugins or QML modules may load from the executable folder', file=sys.stderr)
+            backend.shutdown()
+            sys.exit(1)
         QTimer.singleShot(1500, app.quit)
     exit_code = app.exec()
     backend.shutdown()

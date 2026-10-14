@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from PySide6.QtCore import qInstallMessageHandler, QObject, QMetaObject, QCoreApplication, QEvent
 from PySide6 import QtQuick  # noqa: F401  tipi QQuickWindow/QQuickItem in Python / QQuickWindow/QQuickItem Python types
-from mapper import create_app
+from mapper import create_app, exe_folder_excluded
 
 errors = []
 def messages(kind, context, text):
@@ -19,6 +19,8 @@ def messages(kind, context, text):
 qInstallMessageHandler(messages)
 app, engine, backend = create_app()
 window = engine.rootObjects()[0]
+# Plugin e moduli QML mai dalla cartella dell'eseguibile / Plugins and QML modules never from the executable's folder
+assert exe_folder_excluded(app, engine), app.libraryPaths() + engine.importPathList()
 warnings = []
 engine.warnings.connect(lambda items: warnings.extend(error.toString() for error in items))
 build = Path(__file__).resolve().parents[1] / 'build'
@@ -76,6 +78,14 @@ try:
             shot(name)
             assert QMetaObject.invokeMethod(dialog, 'close')
             settle()
+        # Aprire un programma chiede conferma (dialogo, non esecuzione) / Opening a program asks first (dialog, no run)
+        backend.runRequested.emit(str(root / 'setup.exe'))
+        settle()
+        run = window.findChild(QObject, 'runDialog')
+        assert run.property('visible') and run.property('path').endswith('setup.exe')
+        shot('runDialog')
+        assert QMetaObject.invokeMethod(run, 'close')
+        settle()
         # Ogni formato di esportazione nell'anteprima / Every export format in the preview
         dialog = window.findChild(QObject, 'exportDialog')
         for fmt in ['md', 'json', 'csv', 'txt']:
