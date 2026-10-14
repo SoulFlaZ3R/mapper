@@ -353,6 +353,33 @@ class MapperBackend(QObject):
             index = -1
         return export.ExportOptions(subtree=index, redact=bool(redact), metadata=bool(metadata), version=VERSION)
 
+    @Slot(str, result='QVariantMap')
+    def details(self, path):
+        """
+        Dettagli dell'elemento selezionato e percorso a briciole (dalla radice alla cartella che lo contiene).
+        Details of the selected item and breadcrumb (from the root to the folder that contains it).
+        """
+        tree = self._tree
+        index = tree.index_of(path) if tree and path else -1
+        if index < 0:
+            return {}
+        kind = KIND_NAMES[tree.kinds[index]]
+        info = dict(valid=True, name=tree.names[index], path=tree.path(index), kind=kind,
+                    modified=export.iso(tree.mtimes[index]) if tree.metadata and tree.mtimes[index] else '',
+                    attributes=export.attribute_names(tree.attributes[index]) if tree.metadata else [],
+                    size=float(tree.size(index)) if kind == 'file' else -1.0, files=0, folders=0, bytes=0.0)
+        if kind == 'dir':
+            files, folders, size = tree.totals(index)
+            info.update(files=files, folders=folders, bytes=float(size))
+        chain, parent = [], tree.parents[index]
+        while parent >= 0:
+            chain.append(parent)
+            parent = tree.parents[parent]
+        root_name = os.path.basename(tree.root.rstrip('\\/')) or tree.root
+        info['crumbs'] = [dict(name=root_name, path=tree.root)] + \
+            [dict(name=tree.names[j], path=tree.dir_path(j)) for j in reversed(chain)]
+        return info
+
     @Slot(str, result=bool)
     def isFolder(self, path):
         """Cartella presente nell'ultima mappa (menu contestuale) / Folder in the latest map (context menu)."""
@@ -654,9 +681,10 @@ class MapperBackend(QObject):
         def job(cancel):
             tree = scan_tree(root, excludes=excludes, levels=levels, cancel=cancel,
                              progress=lambda n: self._queue.put(('found', n)))
-            # Indice delle cartelle pronto nel worker, non nel thread dell'interfaccia
-            # Folder index built in the worker, not on the UI thread
+            # Indice delle cartelle e totali pronti nel worker, non nel thread dell'interfaccia
+            # Folder index and totals built in the worker, not on the UI thread
             tree.dir_index()
+            tree.totals()
             return tree
         def done(tree):
             same_root = root == self._scanned_root

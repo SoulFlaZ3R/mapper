@@ -61,6 +61,16 @@ class WalkerTests(TempTree):
         self.assertEqual(tree.index_of(str(self.root / 'missing')), -1)
         self.assertEqual(tree.index_of(str(self.base / 'rootless')), -1)
 
+    def test_folder_totals_in_constant_time(self):
+        (self.root / 'nested' / 'deep').mkdir()
+        (self.root / 'nested' / 'deep' / 'big.bin').write_bytes(b'x' * 1000)
+        tree = scan(self.root)
+        nested = tree.index_of(str(self.root / 'nested'))
+        self.assertEqual(tree.totals(nested), (2, 1, 6 + 1000))
+        self.assertEqual(tree.totals(), (3, 3, 6 + 1000 + 5))
+        self.assertEqual(tree.totals(tree.index_of(str(self.root / 'Alpha'))), (0, 0, 0))
+        self.assertEqual(scan(self.root, metadata=False).totals(), (3, 3, 0))
+
     def test_identical_to_1_5_on_a_larger_tree(self):
         for i in range(30):
             folder = self.root / f'd{i % 7}' / f'Sub {i % 3}' / ('ÀÉ' if i % 2 else 'zz')

@@ -461,6 +461,24 @@ class BackendTests(unittest.TestCase):
         self.assertIn('not a valid Mapper snapshot', self.backend.state['status'])
 
 
+    # ── Milestone 4: dettagli e percorso / details and breadcrumb ──
+    def test_details_and_breadcrumb_of_the_selection(self):
+        (self.root / 'nested' / 'deeper').mkdir()
+        (self.root / 'nested' / 'deeper' / 'data.bin').write_bytes(b'x' * 2048)
+        self.scan()
+        folder = self.backend.details(str(self.root / 'nested'))
+        self.assertEqual((folder['kind'], folder['files'], folder['folders'], folder['bytes']), ('dir', 2, 1, 2048 + 6))
+        self.assertEqual([c['name'] for c in folder['crumbs']], ['root'])
+        item = self.backend.details(str(self.root / 'nested' / 'deeper' / 'data.bin'))
+        self.assertEqual((item['kind'], item['size'], item['name']), ('file', 2048.0, 'data.bin'))
+        self.assertEqual([(c['name'], c['path']) for c in item['crumbs']],
+                         [('root', str(self.root)), ('nested', str(self.root / 'nested')),
+                          ('deeper', str(self.root / 'nested' / 'deeper'))])
+        self.assertTrue(item['modified'].endswith('Z'))
+        self.assertEqual(self.backend.details(str(self.root / 'missing')), {})
+        self.assertEqual(self.backend.details(''), {})
+
+
 class ConfigLocationTests(unittest.TestCase):
     """Exe: preferenze in %APPDATA%/Mapper, accanto all'exe solo se config.json esiste già (chiavetta)."""
     def setUp(self):

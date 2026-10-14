@@ -67,6 +67,7 @@ class Tree:
         self._prefix = root if root.endswith(('\\', '/')) else root + os.sep
         self._dir_paths = {}
         self._dir_index = None
+        self._prefix_sums = None
 
     def __len__(self):
         return len(self.names)
@@ -125,6 +126,33 @@ class Tree:
         while j < end:
             yield j
             j = self.ends[j]
+
+    def totals(self, i=-1):
+        """
+        (file, cartelle, byte) contenuti in una cartella (-1 = tutta la mappa), in tempo costante:
+        somme progressive costruite una volta. / (files, folders, bytes) inside a folder (-1 = whole map),
+        in constant time: running sums built once.
+        """
+        prefix = self._prefix_sums
+        if prefix is None:
+            files, folders, size = array('i', [0]), array('i', [0]), array('q', [0])
+            f = d = b = 0
+            kinds, sizes, metadata = self.kinds, self.sizes, self.metadata
+            for k in range(len(kinds)):
+                kind = kinds[k]
+                if kind == FILE:
+                    f += 1
+                    if metadata and sizes[k] > 0:
+                        b += sizes[k]
+                elif kind == DIR:
+                    d += 1
+                files.append(f)
+                folders.append(d)
+                size.append(b)
+            prefix = self._prefix_sums = (files, folders, size)
+        start, end, _ = self.span(i)
+        files, folders, size = prefix
+        return files[end] - files[start], folders[end] - folders[start], size[end] - size[start]
 
     def dir_index(self):
         """
