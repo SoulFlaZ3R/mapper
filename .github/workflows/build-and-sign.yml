@@ -10,24 +10,33 @@ on:
   # then the exe is discarded. No artifact, attestation or release.
   workflow_dispatch:
 
-permissions:
-  id-token: write
-  contents: write
-  actions: read
-  attestations: write
+# Nessun permesso di base; il job chiede solo quelli che usa
+# No permissions by default; the job asks only for what it uses
+permissions: {}
 
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write       # creare la release / create the release
+      id-token: write       # attestazione di provenienza / provenance attestation
+      attestations: write
+      actions: read
     env:
       # Solo il push di un tag pubblica qualcosa / Only a tag push publishes anything
       RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+    # Azioni fissate per SHA del commit (un tag si può spostare, uno SHA no); il commento indica la versione.
+    # Aggiornamento: vedi docs/security.md. / Actions pinned by commit SHA (a tag can move, a SHA cannot);
+    # the comment names the version. Updating: see docs/security.md.
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          python-version: "3.12"
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12.14"
 
       # Il tag deve coincidere con VERSION in src/mapper_core/version.py; il testo della release
       # è la sezione del CHANGELOG di quella versione (build/release.py notes).
@@ -40,8 +49,22 @@ jobs:
           else { python build/release.py notes --out release-notes.md }
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt pyinstaller
+      # Versioni esatte e impronte SHA-256 di ogni pacchetto: un file diverso da quello atteso blocca la build
+      # Exact versions and SHA-256 fingerprints of every package: a file other than the expected one stops the build
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --require-hashes --no-deps -r build/requirements-build.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m venv .venv-tools
+          .venv-tools/Scripts/python -m pip install --require-hashes --no-deps -r build/requirements-tools.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Lint and static analysis
+        run: .venv-tools/Scripts/ruff check --output-format github
+
+      # Vulnerabilità note (database PyPI/OSV) nelle dipendenze dell'exe / Known vulnerabilities in the exe's dependencies
+      - name: Audit dependencies
+        run: .venv-tools/Scripts/pip-audit --strict --progress-spinner off -r build/requirements-build.txt --require-hashes --disable-pip
 
       - name: Run tests
         run: python -m unittest discover -s tests -p "test_*.py" -v
@@ -71,23 +94,32 @@ jobs:
           portable/mapper-cli.exe diff "$env:RUNNER_TEMP/src.json" src -q | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "unexpected differences: exit $LASTEXITCODE" }
 
+      # Elenco dei componenti (CycloneDX) dalle dipendenze bloccate / Component list (CycloneDX) from the locked dependencies
+      - name: Software bill of materials
+        run: |
+          $project = "[project]`nname = `"Mapper`"`nversion = `"${{ steps.notes.outputs.version }}`"`nlicense = `"MIT`"`n"
+          Set-Content -Path "$env:RUNNER_TEMP/pyproject.toml" -Value $project -Encoding utf8NoBOM
+          .venv-tools/Scripts/cyclonedx-py requirements build/requirements-build.txt --pyproject "$env:RUNNER_TEMP/pyproject.toml" --output-reproducible -o portable/Mapper-sbom.cdx.json
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
       - name: Manual check summary
         if: env.RELEASE != 'true'
         run: |
           "Build, tests and smoke test passed. The exe was discarded: nothing was uploaded or published." | Out-File -Append $env:GITHUB_STEP_SUMMARY
           "`n## Release notes preview (Mapper ${{ steps.notes.outputs.version }})`n" | Out-File -Append $env:GITHUB_STEP_SUMMARY
           Get-Content release-notes.md | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          Remove-Item portable/Mapper.exe, portable/mapper-cli.exe
+          Remove-Item portable/Mapper.exe, portable/mapper-cli.exe, portable/Mapper-sbom.cdx.json
 
       - name: Upload unsigned artifact
         if: env.RELEASE == 'true'
         id: upload
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: Mapper-unsigned
           path: |
             portable/Mapper.exe
             portable/mapper-cli.exe
+            portable/Mapper-sbom.cdx.json
 
       # ── SignPath code signing ──────────────────────────────────────
       # To enable signing, complete these steps:
@@ -103,7 +135,7 @@ jobs:
       # 5. Uncomment the signing step
       #
       # - name: Sign with SignPath
-      #   uses: SignPath/github-action-submit-signing-request@v1
+      #   uses: SignPath/github-action-submit-signing-request@v1  (fissala per SHA / pin it by SHA)
       #   with:
       #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
       #     organization-id: "<your-org-id>"
@@ -116,11 +148,12 @@ jobs:
       # Prova pubblica che l'exe nasce da questo sorgente / Public proof the exe was built from this source
       - name: Attest build provenance
         if: env.RELEASE == 'true'
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
         with:
           subject-path: |
             portable/Mapper.exe
             portable/mapper-cli.exe
+            portable/Mapper-sbom.cdx.json
 
       - name: SHA-256 checksum
         if: env.RELEASE == 'true'
@@ -134,12 +167,14 @@ jobs:
             $lines += ('**SHA-256** `{0}`: `{1}`' -f $name, $hash)
             $lines += ''
           }
+          $lines += 'Component list (SBOM, CycloneDX): `Mapper-sbom.cdx.json`'
+          $lines += ''
           $lines += ('Verify the build provenance: `gh attestation verify Mapper.exe --repo {0}`' -f $env:GITHUB_REPOSITORY)
           $lines | Out-File -Append -Encoding utf8 release-notes.md
 
       - name: Create GitHub Release
         if: env.RELEASE == 'true'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3.0.3
         with:
           name: Mapper ${{ steps.notes.outputs.version }}
           body_path: release-notes.md
@@ -149,3 +184,4 @@ jobs:
             portable/Mapper.exe.sha256
             portable/mapper-cli.exe
             portable/mapper-cli.exe.sha256
+            portable/Mapper-sbom.cdx.json

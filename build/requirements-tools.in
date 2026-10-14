@@ -1,0 +1,4 @@
+# Strumenti dei controlli CI (non entrano nell'exe) / CI check tools (never bundled in the exe)
+ruff
+pip-audit
+cyclonedx-bom

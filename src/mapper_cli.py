@@ -146,7 +146,7 @@ def cmd_scan(args, log):
     tree, elapsed = do_scan(args, log)
     summary = {
         'root': tree.root, 'items': len(tree), 'folders': tree.folders, 'files': tree.files, 'links': tree.links,
-        'bytes': sum(s for s, k in zip(tree.sizes, tree.kinds) if k == 0 and s > 0), 'excluded': tree.excluded,
+        'bytes': sum(s for s, k in zip(tree.sizes, tree.kinds, strict=True) if k == 0 and s > 0), 'excluded': tree.excluded,
         'beyond_levels': tree.truncated, 'seconds': round(elapsed, 3),
         'extensions': dict(tree.extensions.most_common()),
         'errors': [{'path': e.path, 'reason': e.reason} for e in tree.errors],

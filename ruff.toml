@@ -1,0 +1,22 @@
+# Analisi statica (CI, passo "Lint and static analysis") / Static analysis (CI, "Lint and static analysis" step)
+# Locale / Local: .venv-tools/Scripts/ruff.exe check   (vedi / see docs/security.md)
+target-version = "py312"
+line-length = 130
+extend-exclude = [".venv*", "build/temp", "portable"]
+
+[lint]
+# Errori sicuri (E4/E7/E9, F), bug comuni (B), controlli di sicurezza in stile Bandit (S)
+# Real errors (E4/E7/E9, F), common bugs (B), Bandit-style security checks (S)
+select = ["E4", "E7", "E9", "F", "B", "S"]
+ignore = [
+    "B008",  # QModelIndex() come argomento predefinito è l'idioma di PySide / is the PySide idiom
+]
+
+[lint.per-file-ignores]
+# Test: assert, processi di supporto (mklink, la CLI) e più istruzioni per riga sono voluti
+# Tests: asserts, helper processes (mklink, the CLI) and several statements per line are intended
+"tests/**" = ["S101", "S603", "S607", "E702"]
+# git e python con argomenti fissi in lista, senza shell / git and python with fixed list arguments, no shell
+"build/release.py" = ["S603", "S607"]
+# sys.path prima degli import dell'app; assert = controlli dello strumento / sys.path before the app imports; asserts = tool checks
+"build/make_screenshots.py" = ["E402", "S101"]

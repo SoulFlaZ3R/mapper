@@ -13,7 +13,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import reference_scanner_v15 as legacy  # noqa: E402  scanner della 1.5, riferimento congelato / frozen 1.5 reference
-from mapper_core import DIR, FILE, LINK, fsops, root_label, scan  # noqa: E402
+from mapper_core import LINK, fsops, root_label, scan  # noqa: E402
 from mapper_core.paths import display, error_reason, extended  # noqa: E402
 
 

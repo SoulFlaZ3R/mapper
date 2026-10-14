@@ -1,0 +1,4 @@
+# Dipendenze della build (exe) / Build dependencies (exe)
+# Rigenera / Regenerate: see docs/security.md (Dependency lock)
+PySide6==6.12.0
+pyinstaller==6.22.3

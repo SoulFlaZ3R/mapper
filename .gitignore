@@ -24,6 +24,7 @@ portable/Mapper.exe
 portable/mapper-cli.exe
 mapper_output.txt
 .venv/
+.venv-*/
 .uv-cache/
 portable/config.json
 build/preview-qt-*.png
