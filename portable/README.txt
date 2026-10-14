@@ -20,6 +20,11 @@ Impostazioni: 5 temi, 5 lingue, riduzione animazioni (anteprima dal vivo).
 Preferenze e cartelle recenti sono salvate in %APPDATA%\Mapper (nessun file accanto all'exe).
 Per l'uso da chiavetta: crea un config.json vuoto accanto a Mapper.exe.
 
+Riga di comando: mapper-cli.exe (stesso motore, senza finestra). Esempio in PowerShell:
+  mapper-cli snapshot C:\Cartella -o prima.json
+  mapper-cli diff prima.json C:\Cartella -f md -o modifiche.md
+Guida completa: https://github.com/SoulFlaZ3R/mapper/blob/main/docs/cli.md
+
 ENGLISH
 
 Open Mapper.exe. Python installation is not required.
@@ -38,6 +43,11 @@ Inaccessible folders, symbolic links and junctions are skipped.
 Settings: 5 themes, 5 languages and reduced motion (live preview).
 Preferences and recent folders are saved in %APPDATA%\Mapper (no file next to the exe).
 For USB use: create an empty config.json next to Mapper.exe.
+
+Command line: mapper-cli.exe (same engine, no window). PowerShell example:
+  mapper-cli snapshot C:\Folder -o before.json
+  mapper-cli diff before.json C:\Folder -f md -o changes.md
+Full guide: https://github.com/SoulFlaZ3R/mapper/blob/main/docs/cli.md
 
 SHORTCUTS / SCORCIATOIE
 Ctrl+O: browse / sfoglia

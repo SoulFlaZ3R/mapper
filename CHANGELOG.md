@@ -9,6 +9,7 @@ The section of each version is the text of its GitHub release.
 
 ### Added
 
+- `mapper-cli.exe`: command line with `scan`, `export`, `snapshot`, `diff` and `validate`, JSON output, JSON-lines logs and documented exit codes ([docs/cli.md](docs/cli.md)); released next to `Mapper.exe` with its own SHA-256 and attestation
 - Snapshots and comparison: save the state of a folder (optionally with SHA-256 fingerprints) and compare it later with the current map or with another snapshot: added, removed, modified (content vs dates only), renamed or moved files and folders; filter, show in the tree, export as Markdown, JSON (`mapper-diff` schema) or CSV
 - Export as Markdown, JSON (versioned `mapper-tree` schema) and CSV besides the text tree, for the whole map or a single folder, with optional sizes and dates and an option to hide full paths ([docs/formats.md](docs/formats.md))
 - Exclusions: skip technical folders (`.git`, `node_modules`, …), `.gitignore`-style patterns and a limit on the levels to map
@@ -19,6 +20,7 @@ The section of each version is the text of its GitHub release.
 
 ### Changed
 
+- The version number lives in `src/mapper_core/version.py` (shared by the app, the command line and the build)
 - New scanning core (`mapper_core`, no Qt): one pass over the disk instead of two, about 3–5× faster and about 9× less memory per item on the benchmark trees; the text map is unchanged byte for byte
 - While mapping, the status shows the number of items found instead of a percentage
 

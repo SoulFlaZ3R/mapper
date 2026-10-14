@@ -83,6 +83,8 @@ When run from source they are saved in `src/config.json`.
 - **Snapshots and comparison**: save the state of a folder and later see what was added, removed, modified
   (content proven by size or SHA-256 fingerprint, dates alone never count) and renamed or moved; filter the
   differences, jump to them in the tree and export them as Markdown, JSON or CSV (*Compare* button)
+- **Command line** (`mapper-cli.exe`): scan, export, snapshot, compare and validate from PowerShell or a
+  pipeline, with JSON output and documented exit codes — see [docs/cli.md](docs/cli.md)
 - **Exclusions**: skip technical folders (`.git`, `node_modules`, …), add your own `.gitignore`-style
   patterns and limit the levels to map (Settings → *Exclusions and levels…*)
 - Five themes (light, dark, blue, red, system) and five languages (Italian, English, German, French, Spanish), with live preview in Settings
@@ -112,6 +114,19 @@ The window cannot close while a copy/move/delete is still running.
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste |
 | Delete | Move to the Recycle Bin (after confirmation) |
 | Menu / Shift+F10 | Actions for the selected item |
+
+## Command line
+
+`mapper-cli.exe` (released next to `Mapper.exe`, or `python src/mapper_cli.py` from the source) uses the same
+engine without opening a window:
+
+```powershell
+mapper-cli scan D:\Work\Project --skip-technical | ConvertFrom-Json
+mapper-cli snapshot D:\Work\Project -o before.json --hashes
+mapper-cli diff before.json D:\Work\Project -f md -o changes.md   # exit code 1 = differences found
+```
+
+All commands, options and exit codes: [docs/cli.md](docs/cli.md).
 
 ## Tests and build
 
@@ -148,7 +163,7 @@ This avoids a conflicting `icuuc.dll` from some bundled Python runtimes.
 ## Releases
 
 Versions follow `MAJOR.MINOR.PATCH`: PATCH for fixes, MINOR for a new feature, MAJOR after ten features.
-The version lives only in `VERSION` in `src/backend.py`; every change is listed in [CHANGELOG.md](CHANGELOG.md).
+The version lives only in `VERSION` in `src/mapper_core/version.py`; every change is listed in [CHANGELOG.md](CHANGELOG.md).
 
 1. While working, describe each change under `## [Unreleased]` in `CHANGELOG.md`.
 2. On an up-to-date `main` with no uncommitted changes, prepare the release (example for a new feature):
@@ -181,7 +196,8 @@ same checks and build without publishing anything, and shows a preview of the re
 ```text
 src/mapper.py       Qt application and QML launcher
 src/backend.py      Qt adapter: list model, background jobs, file actions and preferences
-src/mapper_core/    Core without Qt: single-pass scanner, compact tree model, long paths, safe copy
+src/mapper_core/    Core without Qt: scanner, tree model, exclusions, exports, snapshots, comparison, safe copy
+src/mapper_cli.py   Command line (mapper-cli.exe), same core, no Qt
 src/qml/Main.qml    Interface, shared components, themes and motion
 src/Languages/      Five translation dictionaries (same keys)
 docs/screenshots/   README images (build/make_screenshots.py)

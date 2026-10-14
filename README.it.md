@@ -83,6 +83,8 @@ Avviando dal codice sorgente sono salvate in `src/config.json`.
 - **Snapshot e confronto**: salva lo stato di una cartella e più tardi vedi cosa è stato aggiunto, rimosso,
   modificato (contenuto provato da dimensione o impronta SHA-256, le sole date non contano mai) e rinominato o
   spostato; filtra le differenze, aprile nell'albero ed esportale in Markdown, JSON o CSV (pulsante *Confronta*)
+- **Riga di comando** (`mapper-cli.exe`): mappa, esporta, salva snapshot, confronta e convalida da PowerShell o
+  da una pipeline, con output JSON e codici di uscita documentati — vedi [docs/cli.md](docs/cli.md)
 - **Esclusioni**: salta le cartelle tecniche (`.git`, `node_modules`, …), aggiungi modelli in stile `.gitignore`
   e limita i livelli da mappare (Impostazioni → *Esclusioni e livelli…*)
 - Cinque temi (chiaro, scuro, blu, rosso, sistema) e cinque lingue (italiano, inglese, tedesco, francese, spagnolo), con anteprima dal vivo nelle Impostazioni
@@ -112,6 +114,19 @@ La finestra non si può chiudere mentre è in corso una copia, uno spostamento o
 | Ctrl+C / Ctrl+X / Ctrl+V | Copia, taglia, incolla |
 | Canc | Sposta nel Cestino (dopo conferma) |
 | Menu / Maiusc+F10 | Azioni sull'elemento selezionato |
+
+## Riga di comando
+
+`mapper-cli.exe` (pubblicato accanto a `Mapper.exe`, oppure `python src/mapper_cli.py` dal sorgente) usa lo stesso
+motore senza aprire finestre:
+
+```powershell
+mapper-cli scan D:\Lavoro\Progetto --skip-technical | ConvertFrom-Json
+mapper-cli snapshot D:\Lavoro\Progetto -o prima.json --hashes
+mapper-cli diff prima.json D:\Lavoro\Progetto -f md -o modifiche.md   # codice di uscita 1 = differenze trovate
+```
+
+Tutti i comandi, le opzioni e i codici di uscita: [docs/cli.md](docs/cli.md) (in inglese).
 
 ## Test e build
 
@@ -148,7 +163,7 @@ Così si evita un `icuuc.dll` in conflitto incluso in alcuni runtime Python.
 ## Rilasci
 
 Le versioni seguono `MAJOR.MINOR.PATCH`: PATCH per le correzioni, MINOR per una nuova funzione, MAJOR dopo dieci funzioni.
-La versione si trova solo in `VERSION` in `src/backend.py`; ogni modifica è elencata in [CHANGELOG.md](CHANGELOG.md).
+La versione si trova solo in `VERSION` in `src/mapper_core/version.py`; ogni modifica è elencata in [CHANGELOG.md](CHANGELOG.md).
 
 1. Mentre lavori, descrivi ogni modifica sotto `## [Unreleased]` in `CHANGELOG.md`.
 2. Su `main` aggiornato e senza modifiche in sospeso, prepara il rilascio (esempio per una nuova funzione):
@@ -181,7 +196,8 @@ stessi controlli e la stessa build senza pubblicare nulla, e mostra un'anteprima
 ```text
 src/mapper.py       Avvio dell'applicazione Qt e del QML
 src/backend.py      Adattatore Qt: modello della lista, lavori in background, azioni sui file e preferenze
-src/mapper_core/    Core senza Qt: scansione in una passata, albero compatto, percorsi lunghi, copia sicura
+src/mapper_core/    Core senza Qt: scansione, albero, esclusioni, esportazioni, snapshot, confronto, copia sicura
+src/mapper_cli.py   Riga di comando (mapper-cli.exe), stesso core, senza Qt
 src/qml/Main.qml    Interfaccia, componenti condivisi, temi e animazioni
 src/Languages/      Cinque dizionari di traduzione (stesse chiavi)
 docs/screenshots/   Immagini del README (build/make_screenshots.py)
