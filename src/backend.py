@@ -17,7 +17,7 @@ from pathlib import Path
 from PySide6.QtCore import (QAbstractListModel, QFile, QLocale, QModelIndex, QObject, Property,
                             QTimer, Qt, QUrl, Signal, Slot)
 from PySide6.QtGui import QDesktopServices, QGuiApplication
-from mapper_core import DIR, FILE, export, fsops, scan as scan_tree
+from mapper_core import DIR, FILE, diff, export, fsops, scan as scan_tree, snapshot
 from mapper_core.filters import Excludes
 from mapper_core.model import KIND_NAMES, NO_EXTENSION
 from mapper_core.paths import display, extended, normalize
@@ -187,23 +187,87 @@ class FileModel(QAbstractListModel):
             self.dataChanged.emit(self.index(changed[0]), self.index(changed[-1]))
 
 
+class DiffModel(QAbstractListModel):
+    """
+    Differenze del confronto, filtrate per tipo e testo. Date in ISO UTC, dimensioni in byte (-1 = n/d).
+    Comparison changes, filtered by kind and text. Dates in ISO UTC, sizes in bytes (-1 = n/a).
+    """
+    fields = ('change', 'path', 'oldPath', 'type', 'detail', 'verified', 'oldSize', 'newSize',
+              'oldModified', 'newModified')
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.changes, self.rows = [], []
+
+    def roleNames(self):
+        return {Qt.UserRole + i + 1: name.encode() for i, name in enumerate(self.fields)}
+
+    def rowCount(self, parent=QModelIndex()):
+        return 0 if parent.isValid() else len(self.rows)
+
+    @staticmethod
+    def _value(change, field):
+        if field == 'change':
+            return change.kind
+        if field == 'path':
+            return change.path
+        if field == 'oldPath':
+            return change.old_path if change.old_path != change.path else ''
+        if field == 'type':
+            return change.type
+        if field == 'detail':
+            return change.detail
+        if field == 'verified':
+            return change.verified
+        if field == 'oldSize':
+            return float(change.old_size)
+        if field == 'newSize':
+            return float(change.new_size)
+        if field == 'oldModified':
+            return export.iso(change.old_mtime) if change.old_mtime else ''
+        return export.iso(change.new_mtime) if change.new_mtime else ''
+
+    def data(self, index, role):
+        i = role - Qt.UserRole - 1
+        if index.isValid() and 0 <= index.row() < len(self.rows) and 0 <= i < len(self.fields):
+            return self._value(self.rows[index.row()], self.fields[i])
+        return None
+
+    def item(self, row):
+        return {f: self._value(self.rows[row], f) for f in self.fields}
+
+    def load(self, changes):
+        self.changes = changes
+        self.apply('', '')
+
+    def apply(self, kind, query):
+        query = query.casefold().strip()
+        self.beginResetModel()
+        self.rows = [c for c in self.changes if (not kind or c.kind == kind) and
+                     (not query or query in c.path.casefold() or query in c.old_path.casefold())]
+        self.endResetModel()
+
+
 class MapperBackend(QObject):
     changed = Signal()
     translationsChanged = Signal()
     extensionsChanged = Signal()
     recentChanged = Signal()
     revealed = Signal(int)
+    comparisonReady = Signal()
 
     def __init__(self, config_path=None):
         super().__init__()
         self.config_path = Path(config_path or CONFIG)
         self.model = FileModel(self)
+        self.diff_model = DiffModel(self)
+        self._diff = None
         self._state = dict(path='', busy=False, progress=-1.0, status='', error=False, scanned=False,
                            total=0, folders=0, files=0, links=0, errors=0, found=0, shown=0, query='',
                            extension='', theme='light', language='en', reducedMotion=False, clipboard='',
                            clipboardMode='', version=VERSION, cancellable=True, rootName='',
                            previewLimit=PREVIEW_LINES, excludeTechnical=False, excludePatterns='', maxLevels=0,
-                           excluded=0, truncated=0)
+                           excluded=0, truncated=0, diff={})
         try:
             prefs = json.loads(self.config_path.read_text(encoding='utf-8'))
         except (OSError, ValueError):
@@ -234,6 +298,7 @@ class MapperBackend(QObject):
         self._pending_reveal = None
         self._clipboard = None
         self._note = None
+        self._cancelled_key = 'scan_cancelled'
         self._cancel = threading.Event()
         self._queue = queue.Queue()
         self._closed = False
@@ -326,6 +391,95 @@ class MapperBackend(QObject):
             return destination
         self._work(job, lambda path: self._status('saved_to', path=path))
 
+    # ── Snapshot e confronto / Snapshots and comparison ─────────────────
+    @Slot(str, bool)
+    def saveSnapshot(self, url, hashes):
+        """
+        Snapshot = export JSON completo con metadati; hashes legge ogni file (lento, annullabile con Esc).
+        Snapshot = full JSON export with metadata; hashes reads every file (slow, Esc cancels).
+        """
+        if not self._state['scanned'] or self._state['busy'] or not self._tree:
+            return
+        destination = QUrl(url).toLocalFile() if QUrl(url).isLocalFile() else url
+        tree = self._tree
+        options = export.ExportOptions(metadata=True, hashes=bool(hashes), version=VERSION)
+        def job(cancel):
+            export.write(tree, 'json', destination, options, cancel)
+            return destination
+        self._status('hashing' if hashes else 'working')
+        self._work(job, lambda path: self._status('snapshot_saved', path=path), cancelled='operation_cancelled')
+
+    def _load_snapshot(self, url):
+        path = QUrl(url).toLocalFile() if QUrl(url).isLocalFile() else url
+        try:
+            return snapshot.load(path)
+        except snapshot.SnapshotError as exc:
+            raise UserError(exc.key) from None
+
+    def _show_diff(self, result, live):
+        self._diff = (result, live)
+        self.diff_model.load(result.changes)
+        self._set(diff=dict(result.summary(), open=True, live=live, oldName=result.old_name,
+                            newName=result.new_name, oldDate=result.old_generated or '',
+                            newDate=result.new_generated or '', complete=result.complete,
+                            hashes=result.hashes_used, total=len(result.changes)))
+        self._status('compare_done', count=len(result.changes))
+        self.comparisonReady.emit()
+
+    @Slot(str)
+    def compareWithSnapshot(self, url):
+        """Snapshot salvato (prima) contro la mappa attuale (dopo) / Saved snapshot (before) vs current map (after)."""
+        if not self._state['scanned'] or self._state['busy'] or not self._tree:
+            return
+        tree, root = self._tree, self._tree.root
+        def verify(relative):
+            return export.sha256_file(os.path.join(root, relative.replace('/', os.sep)))
+        def job(cancel):
+            before = self._load_snapshot(url)
+            return diff.compare(before, snapshot.Snapshot.from_tree(tree), verify=verify)
+        self._status('comparing')
+        self._work(job, lambda result: self._show_diff(result, True), cancelled='operation_cancelled')
+
+    @Slot(str, str)
+    def compareSnapshots(self, before_url, after_url):
+        if self._state['busy']:
+            return
+        def job(cancel):
+            return diff.compare(self._load_snapshot(before_url), self._load_snapshot(after_url))
+        self._status('comparing')
+        self._work(job, lambda result: self._show_diff(result, False), cancelled='operation_cancelled')
+
+    @Slot(str, str)
+    def setDiffFilter(self, kind, query):
+        self.diff_model.apply(kind if kind in diff.KINDS else '', query)
+
+    @Slot(str, str, bool)
+    def exportDiff(self, url, fmt, redact):
+        if not self._diff or self._state['busy'] or fmt not in diff.FORMATS:
+            return
+        destination = QUrl(url).toLocalFile() if QUrl(url).isLocalFile() else url
+        result = self._diff[0]
+        options = diff.DiffExportOptions(redact=bool(redact), version=VERSION)
+        def job(cancel):
+            diff.write(result, fmt, destination, options, cancel)
+            return destination
+        self._work(job, lambda path: self._status('saved_to', path=path), cancelled='operation_cancelled')
+
+    @Slot(str)
+    def revealChange(self, relative):
+        """Mostra nell'albero un elemento del confronto con la mappa attuale / Shows a compared item in the tree."""
+        if not self._diff or not self._diff[1] or not self._tree:
+            return
+        path = os.path.join(self._tree.root, relative.replace('/', os.sep))
+        if self._tree.index_of(path) >= 0:
+            self.reveal(path)
+
+    @Slot()
+    def closeDiff(self):
+        self._diff = None
+        self.diff_model.load([])
+        self._set(diff={})
+
     @Slot(bool, str, int, result=bool)
     def setScanOptions(self, technical, patterns, levels):
         """
@@ -393,9 +547,10 @@ class MapperBackend(QObject):
             self._error(exc)
 
     # ── Lavori in background / Background jobs ──────────────────────────
-    def _work(self, job, done, cancellable=True):
+    def _work(self, job, done, cancellable=True, cancelled='scan_cancelled'):
         if self._state['busy']:
             return False
+        self._cancelled_key = cancelled
         self._cancel = threading.Event()
         cancel = self._cancel
         self._set(busy=True, error=False, progress=-1.0, cancellable=cancellable)
@@ -435,7 +590,7 @@ class MapperBackend(QObject):
                 callback, result, cancelled = payload
                 self._set(busy=False, progress=-1.0)
                 if cancelled:
-                    self._status('scan_cancelled')
+                    self._status(self._cancelled_key)
                 else:
                     callback(result)
 

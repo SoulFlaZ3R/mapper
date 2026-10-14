@@ -37,6 +37,7 @@ def create_app():
     context = engine.rootContext()
     context.setContextProperty('backend', backend)
     context.setContextProperty('fileModel', backend.model)
+    context.setContextProperty('diffModel', backend.diff_model)
     context.setContextProperty('uiFont', 'Inter' if 'Inter' in families else 'Segoe UI')
     context.setContextProperty('iconFont', icon_font)
     engine.load(QUrl.fromLocalFile(str(base / 'qml' / 'Main.qml')))

@@ -403,6 +403,64 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(self.backend.state['status'].startswith('Saved'), self.backend.state['status'])
 
 
+    # ── Milestone 2: snapshot e confronto / snapshots and comparison ──
+    def test_snapshot_compare_filter_reveal_and_export(self):
+        self.scan()
+        snap = Path(self.temp.name) / 'before.json'
+        self.backend.saveSnapshot(QUrl.fromLocalFile(str(snap)).toString(), True)
+        self.settle()
+        self.assertTrue(self.backend.state['status'].startswith('Snapshot saved'), self.backend.state['status'])
+        self.assertIn('"sha256": "', snap.read_text(encoding='utf-8'))
+        (self.root / 'photo.png').write_text('image changed')
+        (self.root / 'added.txt').write_text('new')
+        self.scan()
+        ready = []
+        self.backend.comparisonReady.connect(lambda: ready.append(True))
+        self.backend.compareWithSnapshot(QUrl.fromLocalFile(str(snap)).toString())
+        self.wait(lambda: ready)
+        diff_state = self.backend.state['diff']
+        self.assertEqual((diff_state['added'], diff_state['modified'], diff_state['live']), (1, 1, True))
+        model = self.backend.diff_model
+        self.assertEqual([model.item(r)['path'] for r in range(model.rowCount())], ['added.txt', 'photo.png'])
+        self.backend.setDiffFilter('modified', '')
+        self.assertEqual(model.rowCount(), 1)
+        self.assertEqual(model.item(0)['detail'], 'content')
+        self.backend.setDiffFilter('', 'ADDED')
+        self.assertEqual(model.rowCount(), 1)
+        revealed = []
+        self.backend.revealed.connect(revealed.append)
+        self.backend.revealChange('added.txt')
+        self.wait(lambda: revealed)
+        report = Path(self.temp.name) / 'diff.md'
+        self.backend.exportDiff(QUrl.fromLocalFile(str(report)).toString(), 'md', True)
+        self.settle()
+        self.assertIn('## Added (1)', report.read_text(encoding='utf-8'))
+        self.assertNotIn(str(self.root), report.read_text(encoding='utf-8'))
+        self.backend.closeDiff()
+        self.assertEqual((self.backend.state['diff'], model.rowCount()), ({}, 0))
+
+    def test_compare_two_snapshot_files_and_reject_bad_ones(self):
+        self.scan()
+        first, second = Path(self.temp.name) / 'a.json', Path(self.temp.name) / 'b.json'
+        self.backend.saveSnapshot(str(first), False)
+        self.settle()
+        (self.root / 'nested' / 'report.TXT').unlink()
+        self.scan()
+        self.backend.saveSnapshot(str(second), False)
+        self.settle()
+        ready = []
+        self.backend.comparisonReady.connect(lambda: ready.append(True))
+        self.backend.compareSnapshots(str(first), str(second))
+        self.wait(lambda: ready)
+        self.assertEqual((self.backend.state['diff']['removed'], self.backend.state['diff']['live']), (1, False))
+        bad = Path(self.temp.name) / 'bad.json'
+        bad.write_text('{"format": "mapper-tree", "version": 1, "entries": [{"path": "../x", "type": "file"}]}', encoding='utf-8')
+        self.backend.compareSnapshots(str(bad), str(second))
+        self.settle()
+        self.assertTrue(self.backend.state['error'])
+        self.assertIn('not a valid Mapper snapshot', self.backend.state['status'])
+
+
 class ConfigLocationTests(unittest.TestCase):
     """Exe: preferenze in %APPDATA%/Mapper, accanto all'exe solo se config.json esiste già (chiavetta)."""
     def setUp(self):

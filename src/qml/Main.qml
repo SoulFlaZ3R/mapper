@@ -95,6 +95,24 @@ ApplicationWindow {
         else if (searching) backend.reveal(item.fullPath)
         else backend.toggle(item.fullPath)
     }
+    function humanSize(bytes) {
+        if (bytes < 0) return ""
+        let units = ["B", "KB", "MB", "GB", "TB"], i = 0
+        while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++ }
+        return (i === 0 ? bytes : bytes.toFixed(1)) + " " + units[i]
+    }
+    // Data ISO → formato locale della lingua scelta / ISO date → locale format of the chosen language
+    function when(iso) { return iso ? new Date(iso).toLocaleString(Qt.locale(s.language), Locale.ShortFormat) : "" }
+    function saveSnapshot(hashes) {
+        let folder = parentDir(s.path)
+        let day = Qt.formatDate(new Date(), "yyyy-MM-dd")
+        let name = (s.rootName.replace(/[\\/:*?"<>|]/g, "") || "map") + "-snapshot-" + day + ".json"
+        snapshotSaveDialog.hashes = hashes
+        snapshotSaveDialog.currentFolder = fileUrl(folder)
+        snapshotSaveDialog.selectedFile = fileUrl(folder + "/" + name)
+        snapshotSaveDialog.open()
+    }
+    function pickSnapshot(mode) { snapshotOpenDialog.mode = mode; snapshotOpenDialog.open() }
     function saveMap() {
         let folder = parentDir(s.path)
         let base = exportDialog.subtree ? baseName(exportDialog.subtree) : s.rootName
@@ -395,6 +413,35 @@ ApplicationWindow {
         onAccepted: backend.openFolder(selectedFolder.toString())
     }
     FileDialog {
+        id: snapshotSaveDialog
+        title: win.t("save_snapshot"); fileMode: FileDialog.SaveFile
+        property bool hashes: false
+        nameFilters: [win.t("snapshot_files") + " (*.json)"]; defaultSuffix: "json"
+        onAccepted: backend.saveSnapshot(selectedFile.toString(), hashes)
+    }
+    FileDialog {
+        id: snapshotOpenDialog
+        fileMode: FileDialog.OpenFile
+        property string mode: "current"
+        property string first: ""
+        title: mode === "second" ? win.t("pick_after") : mode === "first" ? win.t("pick_before") : win.t("compare_with_snapshot")
+        nameFilters: [win.t("snapshot_files") + " (*.json)"]
+        onAccepted: {
+            if (mode === "current") backend.compareWithSnapshot(selectedFile.toString())
+            else if (mode === "first") { first = selectedFile.toString(); mode = "second"; Qt.callLater(open) }
+            else backend.compareSnapshots(first, selectedFile.toString())
+        }
+    }
+    FileDialog {
+        id: diffSaveDialog
+        title: win.t("export_compare"); fileMode: FileDialog.SaveFile
+        readonly property var filters: ({ md: win.t("markdown_files") + " (*.md)", json: win.t("json_files") + " (*.json)",
+                                          csv: win.t("csv_files") + " (*.csv)" })
+        nameFilters: [filters[compareDialog.format]]; defaultSuffix: compareDialog.format
+        onAccepted: backend.exportDiff(selectedFile.toString(), compareDialog.format, compareDialog.redact)
+    }
+    Connections { target: backend; function onComparisonReady() { compareDialog.open() } }
+    FileDialog {
         id: saveDialog
         title: win.t("export_map"); fileMode: FileDialog.SaveFile
         readonly property var filters: ({ txt: win.t("text_files") + " (*.txt)", md: win.t("markdown_files") + " (*.md)",
@@ -528,9 +575,16 @@ ApplicationWindow {
                         }
                         SoftButton {
                             objectName: "exportButton"
-                            glyph: "\uE74E"; text: win.t("export_map"); tip: "Ctrl+E"
+                            glyph: "\uE74E"; text: parent.width > 600 ? win.t("export_map") : ""
+                            tip: win.t("export_map") + " (Ctrl+E)"
                             enabled: win.s.scanned && !win.s.busy
-                            onClicked: exportDialog.open()
+                            onClicked: win.openExport("")
+                        }
+                        SoftButton {
+                            objectName: "compareButton"
+                            glyph: "\uE81C"; text: parent.width > 600 ? win.t("compare") : ""; tip: win.t("compare")
+                            enabled: !win.s.busy
+                            onClicked: compareMenu.popup(this, 0, height + 6)
                         }
                     }
                     SoftField {
@@ -926,6 +980,15 @@ ApplicationWindow {
         SoftMenuItem { text: win.t("clear_recent"); glyph: "\uE74D"; onTriggered: backend.clearRecent() }
     }
     SoftMenu {
+        id: compareMenu; objectName: "compareMenu"
+        SoftMenuItem { text: win.t("save_snapshot"); glyph: "\uE74E"; enabled: win.s.scanned && !win.s.busy; onTriggered: win.saveSnapshot(false) }
+        SoftMenuItem { text: win.t("save_snapshot_hashes"); glyph: "\uE74E"; enabled: win.s.scanned && !win.s.busy; onTriggered: win.saveSnapshot(true) }
+        SoftSeparator {}
+        SoftMenuItem { text: win.t("compare_with_snapshot"); glyph: "\uE8AB"; enabled: win.s.scanned && !win.s.busy; onTriggered: win.pickSnapshot("current") }
+        SoftMenuItem { text: win.t("compare_two"); glyph: "\uE8AB"; enabled: !win.s.busy; onTriggered: win.pickSnapshot("first") }
+        SoftMenuItem { text: win.t("last_comparison"); glyph: "\uE81C"; visible: !!win.s.diff.open; onTriggered: compareDialog.open() }
+    }
+    SoftMenu {
         id: createMenu
         SoftMenuItem { text: win.t("ctx_new_file"); glyph: "\uE8A5"; onTriggered: win.nameDialog("new_file", win.targetPath, "") }
         SoftMenuItem { text: win.t("ctx_new_folder"); glyph: "\uE8F4"; onTriggered: win.nameDialog("new_folder", win.targetPath, "") }
@@ -1046,6 +1109,150 @@ ApplicationWindow {
                         background: null
                     }
                 }
+            }
+        }
+    }
+    SoftDialog {
+        id: compareDialog; objectName: "compareDialog"
+        title: win.t("compare_title")
+        width: Math.min(win.width - 80, 920); height: Math.min(win.height - 80, 700)
+        acceptText: win.t("close"); rejectText: ""
+        secondaryText: win.t("export_compare"); secondaryGlyph: "\uE74E"
+        property string kind: ""
+        property string format: "md"
+        property bool redact: false
+        readonly property var d: win.s.diff || ({})
+        readonly property var kinds: ["", "added", "removed", "modified", "renamed"]
+        readonly property var dotColors: ({ added: win.chartColors[0], removed: win.chartColors[4],
+                                            modified: win.chartColors[2], renamed: win.chartColors[1] })
+        function filter() { backend.setDiffFilter(kind, compareSearch.text) }
+        function chipText(k) {
+            let n = win.num(k === "" ? (d.total || 0) : (d[k] || 0))
+            if (k === "added") return win.fmt("change_added", { count: n })
+            if (k === "removed") return win.fmt("change_removed", { count: n })
+            if (k === "modified") return win.fmt("change_modified", { count: n })
+            if (k === "renamed") return win.fmt("change_renamed", { count: n })
+            return win.fmt("filter_all", { count: n })
+        }
+        function describe(r) {
+            if (r.change === "added") return win.t("detail_added")
+            if (r.change === "removed") return win.t("detail_removed")
+            if (r.change === "renamed") {
+                if (r.detail === "folder") return win.fmt("detail_folder", { path: r.oldPath })
+                if (r.detail === "hash") return win.fmt("detail_hash", { path: r.oldPath })
+                return win.fmt("detail_size_date", { path: r.oldPath })
+            }
+            if (r.detail === "type") return win.t("detail_type")
+            if (r.detail === "content") return r.verified ? win.t("detail_content_hash") : win.t("detail_content")
+            return r.verified ? win.t("detail_metadata_same") : win.t("detail_metadata")
+        }
+        function sizes(r) {
+            if (r.type !== "file") return ""
+            if (r.change === "added") return win.humanSize(r.newSize)
+            if (r.change === "removed") return win.humanSize(r.oldSize)
+            if (r.change === "modified" && r.detail === "content" && r.oldSize >= 0 && r.newSize >= 0)
+                return win.humanSize(r.oldSize) + " → " + win.humanSize(r.newSize)
+            return ""
+        }
+        onAboutToShow: { kind = ""; compareSearch.text = ""; filter() }
+        onSecondaryClicked: diffSaveDialog.open()
+        contentItem: ColumnLayout {
+            spacing: 10
+            Caption {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap
+                text: win.fmt("compare_sides", {
+                    before: (compareDialog.d.oldName || "") + (compareDialog.d.oldDate ? " · " + win.when(compareDialog.d.oldDate) : ""),
+                    after: compareDialog.d.live ? win.t("current_map")
+                           : (compareDialog.d.newName || "") + (compareDialog.d.newDate ? " · " + win.when(compareDialog.d.newDate) : "") })
+            }
+            Flow {
+                Layout.fillWidth: true; spacing: 6
+                Repeater {
+                    model: compareDialog.kinds
+                    SoftButton {
+                        required property string modelData
+                        implicitHeight: 32
+                        primary: compareDialog.kind === modelData; flat: compareDialog.kind !== modelData
+                        text: compareDialog.chipText(modelData)
+                        onClicked: { compareDialog.kind = modelData; compareDialog.filter() }
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 10
+                SoftField {
+                    id: compareSearch; objectName: "compareSearch"
+                    Layout.fillWidth: true; glyph: "\uE721"
+                    placeholderText: win.t("compare_search"); Accessible.name: win.t("compare_search")
+                    onTextEdited: compareDialog.filter()
+                    Keys.onDownPressed: { changeList.forceActiveFocus(); if (changeList.count > 0) changeList.currentIndex = 0 }
+                }
+                SoftCombo {
+                    Layout.preferredWidth: 250
+                    model: ["md", "json", "csv"]
+                    Accessible.name: win.t("export_format")
+                    labelFor: function(value) { return value === "md" ? win.t("format_md") : value === "json" ? win.t("format_json") : win.t("format_csv") }
+                    onActivated: compareDialog.format = currentValue
+                }
+                SoftSwitch { text: win.t("export_redact"); checked: compareDialog.redact; onToggled: compareDialog.redact = checked }
+            }
+            Rectangle {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                radius: 14; color: win.pal.inset; border.width: 1; border.color: win.pal.line
+                ListView {
+                    id: changeList; objectName: "changeList"
+                    anchors.fill: parent; anchors.margins: 6; clip: true
+                    model: diffModel; currentIndex: -1
+                    ScrollBar.vertical: SoftScrollBar {}
+                    Keys.onReturnPressed: if (currentItem && currentItem.canReveal) currentItem.reveal()
+                    delegate: ItemDelegate {
+                        id: changeRow
+                        required property string change
+                        required property string path
+                        required property string oldPath
+                        required property string type
+                        required property string detail
+                        required property bool verified
+                        required property real oldSize
+                        required property real newSize
+                        required property int index
+                        readonly property bool canReveal: !!compareDialog.d.live && change !== "removed"
+                        function reveal() { backend.revealChange(path); compareDialog.close() }
+                        width: ListView.view.width; height: 52
+                        hoverEnabled: true; focusPolicy: Qt.NoFocus
+                        leftPadding: 10; rightPadding: 6
+                        onClicked: { changeList.currentIndex = index; changeList.forceActiveFocus() }
+                        onDoubleClicked: if (canReveal) reveal()
+                        Accessible.name: path
+                        background: Rectangle {
+                            radius: 10
+                            color: changeRow.ListView.isCurrentItem ? win.pal.selection : changeRow.hovered ? win.pal.surface : "transparent"
+                        }
+                        contentItem: RowLayout {
+                            spacing: 10
+                            Rectangle { width: 9; height: 9; radius: 5; color: compareDialog.dotColors[changeRow.change] || win.pal.muted }
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 1
+                                Label { Layout.fillWidth: true; text: changeRow.path; elide: Text.ElideMiddle; color: win.pal.ink }
+                                Caption { Layout.fillWidth: true; text: compareDialog.describe(changeRow); elide: Text.ElideMiddle }
+                            }
+                            Caption { text: compareDialog.sizes(changeRow) }
+                            SoftButton {
+                                flat: true; implicitHeight: 30; glyph: "\uE7AC"; tip: win.t("show_in_tree")
+                                visible: changeRow.canReveal && iconFont !== ""
+                                onClicked: changeRow.reveal()
+                            }
+                        }
+                    }
+                }
+                Label {
+                    anchors.centerIn: parent; visible: changeList.count === 0
+                    text: win.t("compare_empty"); color: win.pal.muted
+                }
+            }
+            Caption {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap
+                text: win.t("compare_hint") + (compareDialog.d.complete === false ? " " + win.t("compare_incomplete") : "")
             }
         }
     }
