@@ -9,6 +9,7 @@ The section of each version is the text of its GitHub release.
 
 ### Added
 
+- Snapshots and comparison: save the state of a folder (optionally with SHA-256 fingerprints) and compare it later with the current map or with another snapshot: added, removed, modified (content vs dates only), renamed or moved files and folders; filter, show in the tree, export as Markdown, JSON (`mapper-diff` schema) or CSV
 - Export as Markdown, JSON (versioned `mapper-tree` schema) and CSV besides the text tree, for the whole map or a single folder, with optional sizes and dates and an option to hide full paths ([docs/formats.md](docs/formats.md))
 - Exclusions: skip technical folders (`.git`, `node_modules`, …), `.gitignore`-style patterns and a limit on the levels to map
 - Folders that cannot be read (access denied, path too long, too deep) are listed: *N not readable* in the status bar opens the list
@@ -23,6 +24,7 @@ The section of each version is the text of its GitHub release.
 
 ### Security
 
+- Snapshot files are validated before use (relative paths only, no `..`, size and entry limits, no duplicates, no NaN or deeply nested JSON)
 - CSV export neutralizes cells that spreadsheets would run as formulas (`=`, `+`, `-`, `@`)
 - *Duplicate* and *Paste* no longer follow junctions: a folder containing a junction to itself was copied into itself until the path limit, and a junction to another folder copied that content into the mapped folder. Links are now recreated as links
 - File actions check again, right before running, that the selected item has not been replaced (for example by a junction pointing outside the mapped folder)

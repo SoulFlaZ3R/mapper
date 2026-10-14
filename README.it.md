@@ -80,6 +80,9 @@ Avviando dal codice sorgente sono salvate in `src/config.json`.
 - **Esporta mappa** come albero di testo (TXT), Markdown, JSON o CSV, per tutta la mappa o una cartella (clic destro →
   *Esporta questa cartella…*); dimensioni e date facoltative, opzione per nascondere i percorsi completi, anteprima e copia.
   Il CSV è protetto dalla formula injection. Vedi [docs/formats.md](docs/formats.md)
+- **Snapshot e confronto**: salva lo stato di una cartella e più tardi vedi cosa è stato aggiunto, rimosso,
+  modificato (contenuto provato da dimensione o impronta SHA-256, le sole date non contano mai) e rinominato o
+  spostato; filtra le differenze, aprile nell'albero ed esportale in Markdown, JSON o CSV (pulsante *Confronta*)
 - **Esclusioni**: salta le cartelle tecniche (`.git`, `node_modules`, …), aggiungi modelli in stile `.gitignore`
   e limita i livelli da mappare (Impostazioni → *Esclusioni e livelli…*)
 - Cinque temi (chiaro, scuro, blu, rosso, sistema) e cinque lingue (italiano, inglese, tedesco, francese, spagnolo), con anteprima dal vivo nelle Impostazioni

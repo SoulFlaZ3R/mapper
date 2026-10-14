@@ -80,6 +80,9 @@ When run from source they are saved in `src/config.json`.
 - **Export map** as a text tree (TXT), Markdown, JSON or CSV, for the whole map or one folder (right-click →
   *Export this folder…*); optional sizes and dates, an option to hide full paths, preview and copy.
   CSV is protected against formula injection. See [docs/formats.md](docs/formats.md)
+- **Snapshots and comparison**: save the state of a folder and later see what was added, removed, modified
+  (content proven by size or SHA-256 fingerprint, dates alone never count) and renamed or moved; filter the
+  differences, jump to them in the tree and export them as Markdown, JSON or CSV (*Compare* button)
 - **Exclusions**: skip technical folders (`.git`, `node_modules`, …), add your own `.gitignore`-style
   patterns and limit the levels to map (Settings → *Exclusions and levels…*)
 - Five themes (light, dark, blue, red, system) and five languages (Italian, English, German, French, Spanish), with live preview in Settings

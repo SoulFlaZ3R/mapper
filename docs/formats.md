@@ -32,7 +32,7 @@ failed export never leaves a half-written file. Paths longer than 260 characters
   "generator": {"name": "Mapper", "version": "1.5.0"},
   "generated": "2026-10-14T08:30:00Z",
   "root": {"name": "Project", "path": "D:\\Work\\Project"},
-  "options": {"subtree": false, "redacted": false, "metadata": true, "levels": null, "excluded_patterns": [".git/"]},
+  "options": {"subtree": false, "redacted": false, "metadata": true, "hashes": false, "levels": null, "excluded_patterns": [".git/"]},
   "summary": {"items": 3, "folders": 1, "files": 2, "links": 0, "bytes": 2056, "excluded": 1, "errors": 0, "complete": true},
   "entries": [
     {"path": "src", "name": "src", "type": "dir", "depth": 0, "modified": "2026-10-13T22:26:06.824Z", "attributes": []},
@@ -56,10 +56,66 @@ failed export never leaves a half-written file. Paths longer than 260 characters
 | `entries[].type` | `dir`, `file` or `link` (symbolic link or NTFS junction, never followed). |
 | `entries[].depth` | 0 for items directly inside the exported root. |
 | `entries[].extension` | Lower-case, files only (`""` when there is none). |
+| `entries[].sha256` | Only in snapshots with fingerprints: SHA-256 of the file, `null` if it could not be read. |
 | `entries[].attributes` | Any of `readonly`, `hidden`, `system`, `archive`, `reparse_point`, `compressed`, `offline`, `encrypted`. |
 | `errors[]` | `{path, reason}`; reason is `access_denied`, `not_found`, `path_too_long`, `depth_limit` or `error`. |
 
 Each entry is on its own line, so very large exports can be processed line by line.
+
+## Snapshots and comparison
+
+A **snapshot** is a JSON export of the whole map with sizes and dates (*Compare → Save snapshot…*).
+*Save snapshot with fingerprints* also stores the SHA-256 of every file (`"sha256"` in each file entry,
+`options.hashes: true`): it reads every file once, so it is slower, but later comparisons can prove whether
+content changed. Any `mapper-tree` JSON export with metadata can be used as a snapshot.
+
+Loading a snapshot validates it strictly, because the file may come from anywhere: the `format` and
+`version` must match, every path must be relative (no drive, no leading `/`, no `..`, no `\`, no control
+characters or characters Windows forbids), types and sizes must be valid, a path may appear only once
+(ignoring letter case), `NaN`/`Infinity` and deeply nested JSON are refused, and files over 1 GB or 5 million
+entries are rejected. A file written by Mapper is read line by line (low memory); a reformatted file is
+accepted up to 64 MB.
+
+The comparison (*Compare a snapshot with this map…* or *Compare two snapshots…*) lists:
+
+| Change | Rule |
+| --- | --- |
+| added / removed | present on one side only |
+| modified · content | proven: different size, or different SHA-256 |
+| modified · dates only | dates differ but the content was not proven to change (with fingerprints: same content) |
+| modified · type | a file became a folder or the opposite |
+| renamed or moved · folder | a removed and an added folder with exactly the same content (relative paths, types, sizes) |
+| renamed or moved · hash | a removed and an added file with the same SHA-256 |
+| renamed or moved · size and date | probable: same size (> 0), same date and same extension |
+
+Renames are reported only when the match is unique; otherwise the items stay added and removed. Dates are
+compared with a 2 ms tolerance. Folder dates are ignored (they change whenever their content changes).
+When a snapshot with fingerprints is compared with the current map, Mapper re-reads only the files whose
+size is the same but whose date changed, to confirm whether their content changed. A file edited without
+changing size or date cannot be detected without fingerprints on both sides.
+
+### JSON — `mapper-diff` version 1
+
+```json
+{
+  "format": "mapper-diff",
+  "version": 1,
+  "generator": {"name": "Mapper", "version": "1.5.0"},
+  "generated": "2026-10-15T09:00:00Z",
+  "old": {"name": "Project", "path": "D:\\Work\\Project", "generated": "2026-10-14T08:30:00Z"},
+  "new": {"name": "Project", "path": "D:\\Work\\Project", "generated": null},
+  "options": {"hashes_used": true, "mtime_tolerance_s": 0.002, "redacted": false},
+  "summary": {"added": 1, "removed": 0, "modified": 1, "renamed": 1, "unchanged": 40, "content": 1, "metadata": 0, "complete": true},
+  "changes": [
+    {"change": "added", "path": "notes.md", "type": "file", "new_size": 12, "new_modified": "2026-10-15T08:59:00.000Z"},
+    {"change": "modified", "path": "main.py", "type": "file", "detail": "content", "verified": true, "old_size": 8, "old_modified": "2026-10-14T08:00:00.000Z", "new_size": 8, "new_modified": "2026-10-15T08:00:00.000Z"},
+    {"change": "renamed", "path": "archive", "type": "dir", "old_path": "docs/old", "detail": "folder", "verified": false}
+  ]
+}
+```
+
+`generated` of a side is `null` when that side is the current map. CSV columns: `change, path, old_path,
+type, detail, verified, old_size, new_size, old_modified, new_modified` (formula-safe, like the map CSV).
 
 ## CSV
 
