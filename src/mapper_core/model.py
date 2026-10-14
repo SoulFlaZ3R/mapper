@@ -58,6 +58,11 @@ class Tree:
         self.errors = []
         self.extensions = Counter()
         self.folders = self.files = self.links = 0
+        # Elementi esclusi dalle regole, cartelle non aperte per il limite di livelli, opzioni usate
+        # Items excluded by rules, folders not opened because of the levels limit, options used
+        self.excluded = self.truncated = 0
+        self.levels_limit = None
+        self.patterns = []
         self.cancelled = False
         self._prefix = root if root.endswith(('\\', '/')) else root + os.sep
         self._dir_paths = {}
@@ -150,13 +155,26 @@ class Tree:
         return next((j for j in self.children(parent_index) if os.path.normcase(self.names[j]) == name), -1)
 
     # ── Mappa testuale (formato 1.5) / Text map (1.5 format) ────────────
-    def lines(self):
-        """Righe della mappa Unicode, identiche alla 1.5 / Unicode map lines, identical to 1.5."""
-        yield root_label(self.root)
+    def span(self, i=-1):
+        """
+        (inizio, fine, livello base) degli elementi sotto i (-1 = tutta la mappa).
+        (start, end, base level) of the items below i (-1 = the whole map).
+        """
+        if i < 0:
+            return 0, len(self.names), 0
+        return i + 1, self.ends[i], self.levels[i] + 1
+
+    def lines(self, subtree=-1):
+        """
+        Righe della mappa Unicode, identiche alla 1.5; subtree = indice di una cartella per mapparne solo il contenuto.
+        Unicode map lines, identical to 1.5; subtree = a folder index to map only its content.
+        """
+        start, end, base = self.span(subtree)
+        yield root_label(self.root) if subtree < 0 else self.names[subtree] + '/'
         prefixes = ['']
         names, levels, kinds, last = self.names, self.levels, self.kinds, self.last
-        for i in range(len(names)):
-            level = levels[i]
+        for i in range(start, end):
+            level = levels[i] - base
             prefix = prefixes[level]
             is_last = last[i]
             if kinds[i] == DIR:
