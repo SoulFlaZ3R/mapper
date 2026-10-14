@@ -13,9 +13,11 @@ Clicca un tipo di file nel grafico o nella legenda per filtrare; di nuovo per to
 Clic destro o ⋯ per le azioni: apri, mostra in Esplora risorse, copia percorso,
 taglia/copia/incolla, duplica, nuovo file/cartella, rinomina, elimina.
 Elimina sposta nel Cestino. Le copie non sovrascrivono mai: "nome - copia".
-Esporta mappa: anteprima, copia negli appunti o salva come testo UTF-8.
+Esporta mappa: anteprima, copia negli appunti o salva come testo, Markdown, JSON o CSV.
+Aprire un programma o uno script (.exe, .bat, .ps1 …) chiede prima conferma.
 Usa F5 per aggiornare dopo modifiche fatte fuori da Mapper.
-Le cartelle non accessibili, i collegamenti simbolici e le junction vengono saltati.
+Le cartelle non leggibili vengono elencate (clic su "Non leggibili" nella barra di stato).
+Collegamenti simbolici e junction sono mostrati come collegamenti e mai seguiti.
 Impostazioni: 5 temi, 5 lingue, riduzione animazioni (anteprima dal vivo).
 Preferenze e cartelle recenti sono salvate in %APPDATA%\Mapper (nessun file accanto all'exe).
 Per l'uso da chiavetta: crea un config.json vuoto accanto a Mapper.exe.
@@ -37,9 +39,11 @@ Click a file type in the chart or legend to filter; click again to clear.
 Right-click or ⋯ for actions: open, show in Explorer, copy path,
 cut/copy/paste, duplicate, new file/folder, rename, delete.
 Delete moves items to the Recycle Bin. Copies never overwrite: "name - copy".
-Export map: preview, copy to the clipboard or save as UTF-8 text.
+Export map: preview, copy to the clipboard or save as text, Markdown, JSON or CSV.
+Opening a program or script (.exe, .bat, .ps1 …) asks for confirmation first.
 Press F5 to refresh changes made outside Mapper.
-Inaccessible folders, symbolic links and junctions are skipped.
+Folders that cannot be read are listed (click "Not readable" in the status bar).
+Symbolic links and junctions are shown as links and never followed.
 Settings: 5 themes, 5 languages and reduced motion (live preview).
 Preferences and recent folders are saved in %APPDATA%\Mapper (no file next to the exe).
 For USB use: create an empty config.json next to Mapper.exe.

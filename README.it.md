@@ -31,7 +31,8 @@ Mapper funziona su **Windows 10 e 11**.
 Quando è disponibile una release, scarica `Mapper.exe` dalla
 [pagina Releases](https://github.com/SoulFlaZ3R/mapper/releases) e aprilo con un doppio clic.
 Non serve installazione: è un unico file portatile. Ogni release riporta anche il codice SHA-256
-e un'attestazione di build di GitHub, per verificare che il file sia stato compilato da questo codice.
+e un'attestazione di build di GitHub, per verificare che il file sia stato compilato da questo codice
+([come verificarlo](docs/security.md#supply-chain), in inglese), e l'elenco dei componenti (SBOM).
 
 Windows SmartScreen potrebbe avvisare di un editore sconosciuto, perché l'app non è ancora firmata
 digitalmente: scegli **Ulteriori informazioni → Esegui comunque**.
@@ -81,6 +82,7 @@ Avviando dal codice sorgente sono salvate in `src/config.json`.
 - Scansione in background con conteggio dal vivo degli elementi trovati e possibilità di annullare
 - Azioni con clic destro (o ⋯): apri, mostra in Esplora risorse, copia percorso, taglia/copia/incolla, duplica, nuovo file/cartella, rinomina, elimina
 - Elimina sposta gli elementi nel **Cestino**; le copie non sovrascrivono mai (`nome - copia`, `nome - copia (2)` …); i nomi vengono controllati prima della conferma
+- Aprire un programma o uno script (`.exe`, `.bat`, `.ps1`, `.lnk` …) chiede prima conferma, così niente parte per sbaglio
 - **Esporta mappa** come albero di testo (TXT), Markdown, JSON o CSV, per tutta la mappa o una cartella (clic destro →
   *Esporta questa cartella…*); dimensioni e date facoltative, opzione per nascondere i percorsi completi, anteprima e copia.
   Il CSV è protetto dalla formula injection. Vedi [docs/formats.md](docs/formats.md)
@@ -142,6 +144,10 @@ pip install pyinstaller
 build/build.bat
 ```
 
+Le build di rilascio usano le dipendenze esatte e controllate con hash di `build/requirements-build.txt`
+ed eseguono prima `ruff` (analisi statica, `ruff.toml`) e `pip-audit`; per creare lo stesso ambiente
+in locale vedi [docs/security.md](docs/security.md#maintenance) (in inglese).
+
 I test unitari coprono il core di scansione (righe dell'albero identiche alla 1.5, metadati, avanzamento,
 annullamento, radici di unità, percorsi lunghi, cartelle negate, junction, copia sicura) e, sul backend,
 gli aggiornamenti incrementali dell'albero, la ricerca e *Mostra nell'albero*, l'esportazione, le azioni
@@ -190,11 +196,41 @@ La versione si trova solo in `VERSION` in `src/mapper_core/version.py`; ogni mod
    ```
 
    Il tag avvia GitHub Actions. L'esecuzione si ferma se il tag non coincide con `VERSION`; altrimenti
-   esegue test, build e avvio di prova dell'exe e pubblica la release: `Mapper.exe`, il suo codice
-   SHA-256, un'attestazione di provenienza e la sezione del CHANGELOG di quella versione come testo.
+   installa le dipendenze bloccate, esegue analisi statica, controllo delle vulnerabilità e test, compila
+   e prova entrambi gli exe e pubblica la release: `Mapper.exe` e `mapper-cli.exe` con i loro codici
+   SHA-256, l'SBOM (`Mapper-sbom.cdx.json`), le attestazioni di provenienza e la sezione del CHANGELOG
+   di quella versione come testo.
 
 Dopo il push di `main` e prima del push del tag, **Actions → Build and Sign → Run workflow** esegue gli
 stessi controlli e la stessa build senza pubblicare nulla, e mostra un'anteprima del testo della release nel riepilogo.
+
+## Sicurezza e privacy
+
+Mapper funziona offline: nessun accesso alla rete, telemetria o invio di errori. Preferenze e cartelle
+recenti restano in `%APPDATA%\Mapper`. Le azioni sui file sono limitate alla cartella mappata, non seguono
+mai junction o collegamenti simbolici, non sovrascrivono e cancellano solo nel Cestino. Ogni protezione,
+i suoi test, cosa viene salvato e come vengono create le release: [docs/security.md](docs/security.md)
+(in inglese). Per segnalare una vulnerabilità: [SECURITY.md](SECURITY.md).
+
+## Documentazione
+
+| Documento | Contenuto |
+| --- | --- |
+| [docs/cli.md](docs/cli.md) | Riga di comando: comandi, opzioni, codici di uscita, esempi PowerShell |
+| [docs/formats.md](docs/formats.md) | Formati di esportazione, schemi JSON, file di snapshot e confronto, regole di esclusione |
+| [docs/architecture.md](docs/architecture.md) | Moduli, thread, modello dei dati, test |
+| [docs/benchmarks.md](docs/benchmarks.md) | Come misurare, risultati 1.5 → 2.0 |
+| [docs/security.md](docs/security.md) | Protezioni, privacy, catena di fornitura, verifica di un download |
+| [CHANGELOG.md](CHANGELOG.md) | Modifiche di ogni versione |
+
+I documenti in `docs/` sono in inglese.
+
+## Roadmap
+
+- Firma del codice (Authenticode), così SmartScreen riconosce l'editore
+- Suddivisione del file dell'interfaccia `Main.qml` in componenti più piccoli
+- Prove con i lettori di schermo (Assistente vocale, NVDA)
+- Forse un'integrazione locale in sola lettura per gli assistenti di programmazione (MCP), disattivata di default
 
 ## Struttura
 
@@ -208,7 +244,8 @@ src/Languages/      Cinque dizionari di traduzione (stesse chiavi)
 docs/screenshots/   Immagini del README (build/make_screenshots.py)
 tests/              Test unitari, smoke test del QML reale, scanner 1.5 congelato come riferimento
 benchmarks/         Benchmark riproducibile (alberi sintetici, tempi del motore e dell'app)
-build/              Script di build e di rilascio, icona e manifest di Windows
+build/              Script di build e di rilascio, dipendenze bloccate, icona e manifest di Windows
+docs/               Riga di comando, formati, architettura, benchmark, sicurezza
 CHANGELOG.md        Modifiche di ogni versione (testo delle release su GitHub)
 portable/           Eseguibile per Windows e note d'uso
 ```

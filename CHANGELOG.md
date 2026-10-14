@@ -9,8 +9,6 @@ The section of each version is the text of its GitHub release.
 
 ### Added
 
-- Selection bar under the tree: clickable path of the selected item, size, date and attributes; for folders the number of files and subfolders and the total size (computed once per map, instant on any folder)
-- Empty states for an empty folder, a folder that cannot be read and a map where everything is excluded, each with a shortcut (details, exclusion rules)
 - `mapper-cli.exe`: command line with `scan`, `export`, `snapshot`, `diff` and `validate`, JSON output, JSON-lines logs and documented exit codes ([docs/cli.md](docs/cli.md)); released next to `Mapper.exe` with its own SHA-256 and attestation
 - Snapshots and comparison: save the state of a folder (optionally with SHA-256 fingerprints) and compare it later with the current map or with another snapshot: added, removed, modified (content vs dates only), renamed or moved files and folders; filter, show in the tree, export as Markdown, JSON (`mapper-diff` schema) or CSV
 - Export as Markdown, JSON (versioned `mapper-tree` schema) and CSV besides the text tree, for the whole map or a single folder, with optional sizes and dates and an option to hide full paths ([docs/formats.md](docs/formats.md))
@@ -19,6 +17,8 @@ The section of each version is the text of its GitHub release.
 - Paths longer than 260 characters are mapped and can be renamed, created, copied and moved
 - Junctions and symbolic links are shown as links with their own icon instead of as files
 - Size, date and attributes are collected during the scan (base for structured exports and comparisons)
+- Selection bar under the tree: clickable path of the selected item, size, date and attributes; for folders the number of files and subfolders and the total size (computed once per map, instant on any folder)
+- Empty states for an empty folder, a folder that cannot be read and a map where everything is excluded, each with a shortcut (details, exclusion rules)
 
 ### Changed
 
@@ -29,6 +29,11 @@ The section of each version is the text of its GitHub release.
 
 ### Security
 
+- Opening a program or script from Mapper (`.exe`, `.bat`, `.cmd`, `.ps1`, `.vbs`, `.js`, `.msi`, `.lnk` …) asks for confirmation first
+- *Show in Explorer* starts Explorer by its full path in the Windows folder: an `explorer.exe` placed next to Mapper or in the current folder is never run
+- Qt plugins and interface modules are loaded only from the files bundled in the exe, never from the folder that contains `Mapper.exe` (for example Downloads); the startup self-test checks it
+- The startup error log hides the user folder (and so the user name)
+- Release builds install exact, hash-checked dependencies, pin GitHub Actions and Python to fixed versions, run static analysis (`ruff`) and a dependency vulnerability audit (`pip-audit`), and publish a component list (`Mapper-sbom.cdx.json`, CycloneDX) with its own attestation. Details: [docs/security.md](docs/security.md)
 - Snapshot files are validated before use (relative paths only, no `..`, size and entry limits, no duplicates, no NaN or deeply nested JSON)
 - CSV export neutralizes cells that spreadsheets would run as formulas (`=`, `+`, `-`, `@`)
 - *Duplicate* and *Paste* no longer follow junctions: a folder containing a junction to itself was copied into itself until the path limit, and a junction to another folder copied that content into the mapped folder. Links are now recreated as links

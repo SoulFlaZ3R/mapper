@@ -31,7 +31,8 @@ Mapper runs on **Windows 10 and 11**.
 When a release is available, download `Mapper.exe` from the
 [Releases page](https://github.com/SoulFlaZ3R/mapper/releases) and double-click it.
 No installation is needed: it is a single portable file. Each release also lists a SHA-256
-checksum and a GitHub build attestation, so you can check the file was built from this code.
+checksum and a GitHub build attestation, so you can check the file was built from this code
+([how to verify](docs/security.md#supply-chain)), and a component list (SBOM).
 
 Windows SmartScreen may warn about an unknown publisher because the app is not code-signed yet:
 choose **More info → Run anyway**.
@@ -81,6 +82,7 @@ When run from source they are saved in `src/config.json`.
 - Background scanning with live count of the items found and cancellation
 - Right-click (or ⋯) actions: open, show in Explorer, copy path, cut/copy/paste, duplicate, new file/folder, rename, delete
 - Delete moves items to the **Recycle Bin**; copies never overwrite (`name - copy`, `name - copy (2)` …); names are validated before confirming
+- Opening a program or script (`.exe`, `.bat`, `.ps1`, `.lnk` …) asks for confirmation first, so nothing runs by mistake
 - **Export map** as a text tree (TXT), Markdown, JSON or CSV, for the whole map or one folder (right-click →
   *Export this folder…*); optional sizes and dates, an option to hide full paths, preview and copy.
   CSV is protected against formula injection. See [docs/formats.md](docs/formats.md)
@@ -142,6 +144,10 @@ pip install pyinstaller
 build/build.bat
 ```
 
+Release builds use the exact, hash-checked dependencies in `build/requirements-build.txt` and run
+`ruff` (static analysis, `ruff.toml`) and `pip-audit` first; see [docs/security.md](docs/security.md#maintenance)
+to create the same environment locally.
+
 Unit tests cover the scanning core (tree lines identical to 1.5, metadata, progress, cancellation,
 drive roots, long paths, denied folders, junctions, safe copy), and on the backend
 incremental tree updates, search and *Show in tree*, export, file actions (Recycle Bin,
@@ -190,11 +196,39 @@ The version lives only in `VERSION` in `src/mapper_core/version.py`; every chang
    ```
 
    The tag starts GitHub Actions. The run stops if the tag does not match `VERSION`; otherwise it
-   tests, builds and smoke-tests the exe and publishes the release: `Mapper.exe`, its SHA-256
-   checksum, a build-provenance attestation and the version's CHANGELOG section as text.
+   installs the locked dependencies, runs static analysis, the dependency audit and the tests, builds
+   and smoke-tests both exes and publishes the release: `Mapper.exe` and `mapper-cli.exe` with their
+   SHA-256 checksums, the SBOM (`Mapper-sbom.cdx.json`), build-provenance attestations and the
+   version's CHANGELOG section as text.
 
 After pushing `main` and before pushing the tag, **Actions → Build and Sign → Run workflow** runs the
 same checks and build without publishing anything, and shows a preview of the release text in the run summary.
+
+## Security and privacy
+
+Mapper works offline: no network access, telemetry or crash reports. Preferences and recent folders
+stay in `%APPDATA%\Mapper`. File actions are limited to the mapped folder, never follow junctions or
+symbolic links, never overwrite and delete only to the Recycle Bin. Each protection, its tests, what
+is stored and how releases are built: [docs/security.md](docs/security.md). To report a vulnerability:
+[SECURITY.md](SECURITY.md).
+
+## Documentation
+
+| Document | Content |
+| --- | --- |
+| [docs/cli.md](docs/cli.md) | Command line: commands, options, exit codes, PowerShell examples |
+| [docs/formats.md](docs/formats.md) | Export formats, JSON schemas, snapshot and comparison files, exclusion rules |
+| [docs/architecture.md](docs/architecture.md) | Modules, threads, data model, tests |
+| [docs/benchmarks.md](docs/benchmarks.md) | How to measure, results 1.5 → 2.0 |
+| [docs/security.md](docs/security.md) | Protections, privacy, supply chain, verifying a download |
+| [CHANGELOG.md](CHANGELOG.md) | Changes of every version |
+
+## Roadmap
+
+- Code signing (Authenticode) so that SmartScreen recognizes the publisher
+- Splitting the interface file `Main.qml` into smaller components
+- Testing with screen readers (Narrator, NVDA)
+- Possibly a local, read-only integration for coding assistants (MCP), off by default
 
 ## Structure
 
@@ -208,7 +242,8 @@ src/Languages/      Five translation dictionaries (same keys)
 docs/screenshots/   README images (build/make_screenshots.py)
 tests/              Unit tests, real QML smoke test, frozen 1.5 scanner used as reference
 benchmarks/         Reproducible benchmark (synthetic trees, engine and app timings)
-build/              Build and release scripts, icon and Windows manifest
+build/              Build and release scripts, locked dependencies, icon and Windows manifest
+docs/               Command line, formats, architecture, benchmarks, security
 CHANGELOG.md        Changes of every version (text of the GitHub releases)
 portable/           Windows executable and usage notes
 ```
