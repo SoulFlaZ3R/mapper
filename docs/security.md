@@ -61,7 +61,7 @@ How a release is built (`.github/workflows/build-and-sign.yml`, started only by 
   versions with SHA-256 hashes; CI installs them with `--require-hashes`, so a changed file stops
   the build. The tools never enter the exe.
 - **Pinned actions and Python**: every GitHub Action is pinned to a commit SHA (a tag can be moved,
-  a SHA cannot), Python is pinned to 3.12.14, the checkout keeps no token and the job has only the
+  a SHA cannot), Python is pinned to 3.12.10 (the last 3.12 release with Windows installers), the checkout keeps no token and the job has only the
   permissions it uses.
 - **Checks before the build**: `ruff` (errors, common bugs and Bandit-style security rules, see
   `ruff.toml`), `pip-audit --strict` on the build dependencies (known vulnerabilities from the
