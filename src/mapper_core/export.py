@@ -8,6 +8,7 @@ Each format is a line generator: the preview reads only the first lines, saving 
 file and then replaces the target atomically (also beyond 260 characters).
 """
 import csv
+import hashlib
 import io
 import json
 import os
@@ -41,12 +42,26 @@ class ExportOptions:
     subtree: int = -1
     redact: bool = False
     metadata: bool = True
+    # SHA-256 dei file (JSON): legge ogni file per intero, solo su richiesta / reads every file, on request only
+    hashes: bool = False
     generator: str = 'Mapper'
     version: str = ''
     generated: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ── Aiuti / Helpers ─────────────────────────────────────────────────────
+def sha256_file(path):
+    """SHA-256 esadecimale, None se il file non si può leggere / Hex SHA-256, None if unreadable."""
+    digest = hashlib.sha256()
+    try:
+        with open(extended(normalize(path)), 'rb') as handle:
+            for block in iter(lambda: handle.read(1 << 20), b''):
+                digest.update(block)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
 def iso(timestamp):
     return datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
 
@@ -134,7 +149,7 @@ class _Scope:
         return self.relative(error.path) if self.contains(error.path) else REDACTED
 
 
-def _entry(tree, scope, i, metadata):
+def _entry(tree, scope, i, metadata, hashes=False):
     kind = tree.kinds[i]
     entry = dict(path=scope.relative(tree.path(i)), name=tree.names[i], type=KIND_NAMES[kind],
                  depth=tree.levels[i] - scope.base)
@@ -145,6 +160,8 @@ def _entry(tree, scope, i, metadata):
             entry['size'] = tree.sizes[i]
         entry['modified'] = iso(tree.mtimes[i]) if tree.mtimes[i] else None
         entry['attributes'] = attribute_names(tree.attributes[i])
+    if hashes and kind == FILE:
+        entry['sha256'] = sha256_file(tree.path(i))
     return entry
 
 
@@ -164,7 +181,7 @@ def json_lines(tree, options):
         'generated': options.generated.isoformat(timespec='seconds').replace('+00:00', 'Z'),
         'root': {'name': scope.name, 'path': scope.root_path()},
         'options': {'subtree': options.subtree >= 0, 'redacted': options.redact, 'metadata': metadata,
-                    'levels': tree.levels_limit, 'excluded_patterns': tree.patterns},
+                    'hashes': options.hashes, 'levels': tree.levels_limit, 'excluded_patterns': tree.patterns},
         'summary': {'items': scope.end - scope.start, 'folders': scope.folders, 'files': scope.files,
                     'links': scope.links, 'bytes': scope.bytes if metadata else None,
                     'excluded': tree.excluded if options.subtree < 0 else None, 'errors': len(scope.errors),
@@ -178,7 +195,7 @@ def json_lines(tree, options):
     for i in range(scope.start, scope.end):
         if pending is not None:
             yield pending + ','
-        pending = '    ' + json.dumps(_entry(tree, scope, i, metadata), ensure_ascii=False)
+        pending = '    ' + json.dumps(_entry(tree, scope, i, metadata, options.hashes), ensure_ascii=False)
     if pending is not None:
         yield pending
     yield '  ],'
@@ -274,21 +291,21 @@ def text(tree, fmt, options=None):
     return '\n'.join(lines(tree, fmt, options))
 
 
-def write(tree, fmt, destination, options=None, cancel=None):
+def write_lines(rows, destination, csv_format=False, cancel=None, every=4096):
     """
-    Scrive l'esportazione in modo atomico: file temporaneo nella stessa cartella, poi sostituzione.
+    Scrive righe in modo atomico: file temporaneo nella stessa cartella, poi sostituzione.
     Se annullata o in errore il file di destinazione resta com'era. CSV: UTF-8 con BOM e CRLF (Excel).
-    Writes the export atomically: temporary file in the same folder, then replacement.
+    Writes lines atomically: temporary file in the same folder, then replacement.
     When cancelled or failing the destination stays as it was. CSV: UTF-8 with BOM and CRLF (Excel).
     Restituisce True se scritto / Returns True when written.
     """
     target = extended(normalize(destination))
-    encoding, newline = ('utf-8-sig', '\r\n') if fmt == 'csv' else ('utf-8', None)
+    encoding, newline = ('utf-8-sig', '\r\n') if csv_format else ('utf-8', None)
     handle, temp = tempfile.mkstemp(prefix='.mapper-', suffix='.tmp', dir=os.path.dirname(target))
     try:
         with os.fdopen(handle, 'w', encoding=encoding, newline=newline) as out:
-            for k, line in enumerate(lines(tree, fmt, options)):
-                if cancel is not None and k % 4096 == 0 and cancel.is_set():
+            for k, line in enumerate(rows):
+                if cancel is not None and k % every == 0 and cancel.is_set():
                     raise InterruptedError
                 out.write(line + '\n')
         os.replace(temp, target)
@@ -298,3 +315,11 @@ def write(tree, fmt, destination, options=None, cancel=None):
     finally:
         if os.path.exists(temp):
             os.unlink(temp)
+
+
+def write(tree, fmt, destination, options=None, cancel=None):
+    """Esportazione atomica della mappa (vedi write_lines) / Atomic map export (see write_lines)."""
+    # Con gli hash ogni riga può leggere un file intero: controllo a ogni riga
+    # With hashes each line may read a whole file: check on every line
+    every = 1 if options is not None and options.hashes else 4096
+    return write_lines(lines(tree, fmt, options), destination, fmt == 'csv', cancel, every)

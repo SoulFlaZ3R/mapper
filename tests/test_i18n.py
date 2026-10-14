@@ -17,6 +17,10 @@ def used_keys():
     keys |= set(re.findall(r"_status\('([a-z_]+)'", py)) | set(re.findall(r"UserError\('([a-z_]+)'\)", py))
     keys |= set(re.findall(r"_translations\['([a-z_]+)'\]", py))
     keys |= set(re.findall(r"_part\('([a-z_]+)'", py))
+    keys |= set(re.findall(r"cancelled='([a-z_]+)'", py))
+    # Errori degli snapshot: la chiave viene dal core / Snapshot errors: the key comes from the core
+    core = (SRC / 'mapper_core' / 'snapshot.py').read_text(encoding='utf-8')
+    keys |= set(re.findall(r"SnapshotError\('([a-z_]+)'", core))
     return keys
 
 
