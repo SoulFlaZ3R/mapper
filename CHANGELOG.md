@@ -7,6 +7,23 @@ The section of each version is the text of its GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- Folders that cannot be read (access denied, path too long, too deep) are listed: *N not readable* in the status bar opens the list
+- Paths longer than 260 characters are mapped and can be renamed, created, copied and moved
+- Junctions and symbolic links are shown as links with their own icon instead of as files
+- Size, date and attributes are collected during the scan (base for structured exports and comparisons)
+
+### Changed
+
+- New scanning core (`mapper_core`, no Qt): one pass over the disk instead of two, about 3–5× faster and about 9× less memory per item on the benchmark trees; the text map is unchanged byte for byte
+- While mapping, the status shows the number of items found instead of a percentage
+
+### Security
+
+- *Duplicate* and *Paste* no longer follow junctions: a folder containing a junction to itself was copied into itself until the path limit, and a junction to another folder copied that content into the mapped folder. Links are now recreated as links
+- File actions check again, right before running, that the selected item has not been replaced (for example by a junction pointing outside the mapped folder)
+
 ## [1.5.0] - 2026-10-14
 
 First public release.

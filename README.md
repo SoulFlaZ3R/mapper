@@ -83,7 +83,9 @@ When run from source they are saved in `src/config.json`.
 - Portable executable, no installation; preferences in `%APPDATA%\Mapper`, or next to the exe for USB use
 
 Search uses the latest map. Press F5 to refresh changes made by other applications.
-Inaccessible folders are skipped; symbolic links and NTFS junctions are not traversed.
+Folders that cannot be read are skipped and listed: click **N not readable** in the status bar.
+Paths longer than 260 characters are supported. Symbolic links and NTFS junctions are shown as links
+and never followed, also when copying or duplicating (they are recreated as links).
 The window cannot close while a copy/move/delete is still running.
 
 ## Keyboard shortcuts
@@ -113,7 +115,8 @@ pip install pyinstaller
 build/build.bat
 ```
 
-Unit tests cover the scanner (tree lines, progress, cancellation, drive roots, junctions),
+Unit tests cover the scanning core (tree lines identical to 1.5, metadata, progress, cancellation,
+drive roots, long paths, denied folders, junctions, safe copy), and on the backend
 incremental tree updates, search and *Show in tree*, export, file actions (Recycle Bin,
 unique copy names, case-only renames, overwrite protection), validation, preferences, recent
 folders and translation completeness. The UI smoke test loads the real QML, opens every
@@ -170,12 +173,13 @@ same checks and build without publishing anything, and shows a preview of the re
 
 ```text
 src/mapper.py       Qt application and QML launcher
-src/backend.py      List model, background jobs, filesystem actions and preferences
-src/scanner.py      Scanner: one traversal for the explorer index and the tree map
+src/backend.py      Qt adapter: list model, background jobs, file actions and preferences
+src/mapper_core/    Core without Qt: single-pass scanner, compact tree model, long paths, safe copy
 src/qml/Main.qml    Interface, shared components, themes and motion
 src/Languages/      Five translation dictionaries (same keys)
 docs/screenshots/   README images (build/make_screenshots.py)
-tests/              Unit tests and real QML smoke test
+tests/              Unit tests, real QML smoke test, frozen 1.5 scanner used as reference
+benchmarks/         Reproducible benchmark (synthetic trees, engine and app timings)
 build/              Build and release scripts, icon and Windows manifest
 CHANGELOG.md        Changes of every version (text of the GitHub releases)
 portable/           Windows executable and usage notes

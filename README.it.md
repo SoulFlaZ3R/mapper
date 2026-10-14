@@ -83,7 +83,9 @@ Avviando dal codice sorgente sono salvate in `src/config.json`.
 - Eseguibile portatile, senza installazione; preferenze in `%APPDATA%\Mapper`, oppure accanto all'exe per l'uso da chiavetta
 
 La ricerca usa l'ultima mappatura. Premi F5 per aggiornare dopo modifiche fatte da altri programmi.
-Le cartelle non accessibili vengono saltate; i collegamenti simbolici e le junction NTFS non vengono attraversati.
+Le cartelle che non si possono leggere vengono saltate ed elencate: clic su **N non leggibili** nella barra di stato.
+I percorsi oltre 260 caratteri sono supportati. I collegamenti simbolici e le junction NTFS sono mostrati come
+collegamenti e non vengono mai seguiti, nemmeno copiando o duplicando (vengono ricreati come collegamenti).
 La finestra non si può chiudere mentre è in corso una copia, uno spostamento o un'eliminazione.
 
 ## Scorciatoie da tastiera
@@ -113,7 +115,8 @@ pip install pyinstaller
 build/build.bat
 ```
 
-I test unitari coprono lo scanner (righe dell'albero, avanzamento, annullamento, radici di unità, junction),
+I test unitari coprono il core di scansione (righe dell'albero identiche alla 1.5, metadati, avanzamento,
+annullamento, radici di unità, percorsi lunghi, cartelle negate, junction, copia sicura) e, sul backend,
 gli aggiornamenti incrementali dell'albero, la ricerca e *Mostra nell'albero*, l'esportazione, le azioni
 sui file (Cestino, nomi univoci per le copie, rinomina delle sole maiuscole, protezione dalla sovrascrittura),
 la validazione, le preferenze, le cartelle recenti e la completezza delle traduzioni. Lo smoke test della UI
@@ -170,12 +173,13 @@ stessi controlli e la stessa build senza pubblicare nulla, e mostra un'anteprima
 
 ```text
 src/mapper.py       Avvio dell'applicazione Qt e del QML
-src/backend.py      Modello della lista, lavori in background, azioni sui file e preferenze
-src/scanner.py      Scanner: un'unica visita per l'indice dell'esploratore e la mappa ad albero
+src/backend.py      Adattatore Qt: modello della lista, lavori in background, azioni sui file e preferenze
+src/mapper_core/    Core senza Qt: scansione in una passata, albero compatto, percorsi lunghi, copia sicura
 src/qml/Main.qml    Interfaccia, componenti condivisi, temi e animazioni
 src/Languages/      Cinque dizionari di traduzione (stesse chiavi)
 docs/screenshots/   Immagini del README (build/make_screenshots.py)
-tests/              Test unitari e smoke test del QML reale
+tests/              Test unitari, smoke test del QML reale, scanner 1.5 congelato come riferimento
+benchmarks/         Benchmark riproducibile (alberi sintetici, tempi del motore e dell'app)
 build/              Script di build e di rilascio, icona e manifest di Windows
 CHANGELOG.md        Modifiche di ogni versione (testo delle release su GitHub)
 portable/           Eseguibile per Windows e note d'uso
