@@ -21,6 +21,7 @@ Thumbs.db
 # Project specific
 CLAUDE.md
 portable/Mapper.exe
+portable/mapper-cli.exe
 mapper_output.txt
 .venv/
 .uv-cache/

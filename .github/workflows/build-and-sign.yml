@@ -29,9 +29,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Il tag deve coincidere con VERSION in src/backend.py; il testo della release
+      # Il tag deve coincidere con VERSION in src/mapper_core/version.py; il testo della release
       # è la sezione del CHANGELOG di quella versione (build/release.py notes).
-      # The tag must match VERSION in src/backend.py; the release text is that
+      # The tag must match VERSION in src/mapper_core/version.py; the release text is that
       # version's CHANGELOG section (build/release.py notes).
       - name: Check version and release notes
         id: notes
@@ -57,13 +57,27 @@ jobs:
           $p = Start-Process portable/Mapper.exe -ArgumentList "--smoke-test" -PassThru -Wait
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
 
+      # La CLI: versione, mappa del sorgente in JSON e snapshot convalidato / The CLI: version, JSON map, validated snapshot
+      - name: Smoke-test packaged CLI
+        timeout-minutes: 2
+        run: |
+          $version = portable/mapper-cli.exe --version
+          if ($version -ne "mapper-cli ${{ steps.notes.outputs.version }}") { throw "unexpected version: $version" }
+          $summary = portable/mapper-cli.exe scan src --skip-technical -q | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $summary.files -lt 1) { throw "scan failed" }
+          portable/mapper-cli.exe snapshot src -o "$env:RUNNER_TEMP/src.json" -q
+          $check = portable/mapper-cli.exe validate "$env:RUNNER_TEMP/src.json" | ConvertFrom-Json
+          if (-not $check.valid) { throw "snapshot not valid" }
+          portable/mapper-cli.exe diff "$env:RUNNER_TEMP/src.json" src -q | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "unexpected differences: exit $LASTEXITCODE" }
+
       - name: Manual check summary
         if: env.RELEASE != 'true'
         run: |
           "Build, tests and smoke test passed. The exe was discarded: nothing was uploaded or published." | Out-File -Append $env:GITHUB_STEP_SUMMARY
           "`n## Release notes preview (Mapper ${{ steps.notes.outputs.version }})`n" | Out-File -Append $env:GITHUB_STEP_SUMMARY
           Get-Content release-notes.md | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          Remove-Item portable/Mapper.exe
+          Remove-Item portable/Mapper.exe, portable/mapper-cli.exe
 
       - name: Upload unsigned artifact
         if: env.RELEASE == 'true'
@@ -71,7 +85,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Mapper-unsigned
-          path: portable/Mapper.exe
+          path: |
+            portable/Mapper.exe
+            portable/mapper-cli.exe
 
       # ── SignPath code signing ──────────────────────────────────────
       # To enable signing, complete these steps:
@@ -102,21 +118,24 @@ jobs:
         if: env.RELEASE == 'true'
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: portable/Mapper.exe
+          subject-path: |
+            portable/Mapper.exe
+            portable/mapper-cli.exe
 
       - name: SHA-256 checksum
         if: env.RELEASE == 'true'
         run: |
-          $hash = (Get-FileHash portable/Mapper.exe -Algorithm SHA256).Hash.ToLower()
-          "$hash  Mapper.exe" | Out-File -Encoding ascii portable/Mapper.exe.sha256
-          # Checksum e verifica in fondo al testo della release / Checksum and verification at the end of the release text
-          @(
-            ''
-            '---'
-            ('**SHA-256** `Mapper.exe`: `{0}`' -f $hash)
-            ''
-            ('Verify the build provenance: `gh attestation verify Mapper.exe --repo {0}`' -f $env:GITHUB_REPOSITORY)
-          ) | Out-File -Append -Encoding utf8 release-notes.md
+          # Un file .sha256 per eseguibile; checksum e verifica in fondo al testo della release
+          # One .sha256 file per executable; checksums and verification at the end of the release text
+          $lines = @('', '---')
+          foreach ($name in 'Mapper.exe', 'mapper-cli.exe') {
+            $hash = (Get-FileHash "portable/$name" -Algorithm SHA256).Hash.ToLower()
+            "$hash  $name" | Out-File -Encoding ascii "portable/$name.sha256"
+            $lines += ('**SHA-256** `{0}`: `{1}`' -f $name, $hash)
+            $lines += ''
+          }
+          $lines += ('Verify the build provenance: `gh attestation verify Mapper.exe --repo {0}`' -f $env:GITHUB_REPOSITORY)
+          $lines | Out-File -Append -Encoding utf8 release-notes.md
 
       - name: Create GitHub Release
         if: env.RELEASE == 'true'
@@ -128,3 +147,5 @@ jobs:
           files: |
             portable/Mapper.exe
             portable/Mapper.exe.sha256
+            portable/mapper-cli.exe
+            portable/mapper-cli.exe.sha256

@@ -41,6 +41,6 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo [BUILD] Build completata! / Build complete!
-echo [BUILD] Output: ..\portable\Mapper.exe
+echo [BUILD] Output: ..\portable\Mapper.exe  +  ..\portable\mapper-cli.exe
 echo.
 pause
