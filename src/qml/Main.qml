@@ -22,10 +22,10 @@ ApplicationWindow {
 
     // ── Palette per tema: unica fonte dei colori / Per-theme palette: single source of colors ──
     readonly property var palettes: ({
-        light: { bg: "#e9eef1", surface: "#f4f7f8", inset: "#e3e9ed", ink: "#22383c", muted: "#5f757b",
+        light: { bg: "#e9eef1", surface: "#f4f7f8", inset: "#e3e9ed", ink: "#22383c", muted: "#53666b",
                  accent: "#356b59", onAccent: "#ffffff", rim: "#ffffff", line: "#d0dce1", hover: "#ffffff",
                  selection: "#d5e6dc", danger: "#a43f38", shadow: "#26788d99", scrim: "#4d1c2a30" },
-        dark:  { bg: "#1d232b", surface: "#262f3a", inset: "#1a2028", ink: "#edf3f5", muted: "#9fb0bb",
+        dark:  { bg: "#1d232b", surface: "#262f3a", inset: "#1a2028", ink: "#edf3f5", muted: "#afbdc6",
                  accent: "#b4d3c1", onAccent: "#1e3a2c", rim: "#35424f", line: "#35424f", hover: "#313d4a",
                  selection: "#34503f", danger: "#ffb4a9", shadow: "#60000000", scrim: "#80000000" },
         blue:  { bg: "#121a28", surface: "#1a2435", inset: "#0f1622", ink: "#e8f0fb", muted: "#98abc6",
@@ -111,6 +111,45 @@ ApplicationWindow {
         snapshotSaveDialog.currentFolder = fileUrl(folder)
         snapshotSaveDialog.selectedFile = fileUrl(folder + "/" + name)
         snapshotSaveDialog.open()
+    }
+    function attributeNames(list) {
+        let names = []
+        for (let a of list || []) {
+            if (a === "readonly") names.push(win.t("attr_readonly"))
+            else if (a === "hidden") names.push(win.t("attr_hidden"))
+            else if (a === "system") names.push(win.t("attr_system"))
+            else if (a === "compressed") names.push(win.t("attr_compressed"))
+            else if (a === "encrypted") names.push(win.t("attr_encrypted"))
+            else if (a === "offline") names.push(win.t("attr_offline"))
+        }
+        return names.join(", ")
+    }
+    // Riga dei dettagli dell'elemento selezionato / Details line of the selected item
+    function describeItem(info) {
+        if (!info || !info.valid) return ""
+        let parts = []
+        if (info.kind === "dir")
+            parts.push(win.fmt("details_folder", { files: win.num(info.files), folders: win.num(info.folders), size: win.humanSize(info.bytes) }))
+        else if (info.kind === "link") parts.push(win.t("details_link"))
+        else parts.push(win.fmt("details_file", { size: win.humanSize(info.size) }))
+        if (info.modified) parts.push(win.fmt("details_modified", { date: win.when(info.modified) }))
+        let attributes = win.attributeNames(info.attributes)
+        if (attributes) parts.push(attributes)
+        return parts.join(" · ")
+    }
+    // Clic su un passo del percorso: radice = inizio dell'albero / Breadcrumb click: root = top of the tree
+    function goToFolder(folder) {
+        if (folder === s.path) { tree.currentIndex = -1; tree.positionViewAtBeginning(); tree.forceActiveFocus() }
+        else backend.reveal(folder)
+    }
+    // Stato vuoto da mostrare / Which empty state to show
+    function emptyState() {
+        if (s.busy) return "busy"
+        if (!s.scanned) return "welcome"
+        if (searching) return "noresults"
+        if (s.total === 0 && s.errors > 0) return "unreadable"
+        if (s.total === 0 && s.excluded > 0) return "excluded"
+        return "empty"
     }
     function pickSnapshot(mode) { snapshotOpenDialog.mode = mode; snapshotOpenDialog.open() }
     function saveMap() {
@@ -696,6 +735,7 @@ ApplicationWindow {
                                 onClicked: { tree.currentIndex = index; tree.forceActiveFocus() }
                                 onDoubleClicked: win.activate(row)
                                 Accessible.name: itemName
+                                Accessible.description: kind === "link" ? win.t("link_item") : directory ? win.t("folders") : extension
                                 background: Rectangle {
                                     radius: 10
                                     color: row.ListView.isCurrentItem ? win.pal.selection : row.hovered ? win.pal.inset : "transparent"
@@ -760,18 +800,34 @@ ApplicationWindow {
                                 Label {
                                     anchors.centerIn: parent; rotation: 6; font.pixelSize: 34; color: win.pal.accent
                                     font.family: iconFont || uiFont
-                                    text: !iconFont ? "◈" : win.s.scanned ? "\uE721" : win.s.busy ? "\uE8FD" : "\uE898"
+                                    readonly property string emptyKind: win.emptyState()
+                                    text: !iconFont ? "◈" : emptyKind === "noresults" ? "\uE721" : emptyKind === "busy" ? "\uE8FD"
+                                          : emptyKind === "unreadable" ? "\uE7BA" : emptyKind === "welcome" ? "\uE898" : "\uE8B7"
                                 }
                             }
                             Heading {
                                 Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                                text: win.s.scanned ? win.t("search_no_results") : win.s.busy ? win.t("scanning") : win.t("empty_title")
+                                objectName: "emptyTitle"
+                                text: {
+                                    let state = win.emptyState()
+                                    if (state === "busy") return win.s.found > 0 ? win.fmt("scanning_found", { count: win.num(win.s.found) }) : win.t("scanning")
+                                    if (state === "noresults") return win.t("search_no_results")
+                                    if (state === "unreadable") return win.t("unreadable_title")
+                                    if (state === "excluded") return win.t("all_excluded_title")
+                                    if (state === "empty") return win.t("empty_folder_title")
+                                    return win.t("empty_title")
+                                }
                             }
                             Caption {
                                 Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
                                 visible: text !== ""
-                                text: win.s.scanned ? win.t("filter_empty_hint") : win.s.busy
-                                      ? (win.s.progress >= 0 ? Math.round(win.s.progress * 100) + "%" : "") : win.t("drop_hint")
+                                text: {
+                                    let state = win.emptyState()
+                                    if (state === "noresults") return win.t("filter_empty_hint")
+                                    if (state === "unreadable") return win.t("unreadable_hint")
+                                    if (state === "welcome") return win.t("drop_hint")
+                                    return ""
+                                }
                             }
                             SoftButton {
                                 Layout.alignment: Qt.AlignHCenter; primary: true; glyph: "\uE838"; text: win.t("browse")
@@ -779,7 +835,15 @@ ApplicationWindow {
                             }
                             SoftButton {
                                 Layout.alignment: Qt.AlignHCenter; text: win.t("clear_filters")
-                                visible: win.s.scanned && win.searching; onClicked: backend.clearFilters()
+                                visible: win.emptyState() === "noresults"; onClicked: backend.clearFilters()
+                            }
+                            SoftButton {
+                                Layout.alignment: Qt.AlignHCenter; glyph: "\uE7BA"; text: win.t("show_details")
+                                visible: win.emptyState() === "unreadable"; onClicked: errorsDialog.open()
+                            }
+                            SoftButton {
+                                Layout.alignment: Qt.AlignHCenter; glyph: "\uE71C"; text: win.t("exclusions_edit")
+                                visible: win.emptyState() === "excluded"; onClicked: scanOptions.open()
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; Layout.topMargin: 8; spacing: 2
@@ -803,8 +867,51 @@ ApplicationWindow {
                             }
                         }
                     }
+                    // Selezione: percorso cliccabile e dettagli / Selection: clickable path and details
+                    ColumnLayout {
+                        id: selectionBar; objectName: "selectionBar"
+                        Layout.fillWidth: true; spacing: 0
+                        readonly property var info: tree.currentItem && win.s.scanned ? backend.details(tree.currentItem.fullPath) : ({})
+                        visible: !!info.valid
+                        Accessible.role: Accessible.StatusBar
+                        Accessible.name: win.t("selection_path") + ": " + (info.path || "") + ". " + win.describeItem(info)
+                        Flow {
+                            Layout.fillWidth: true; spacing: 0
+                            Repeater {
+                                model: selectionBar.info.crumbs || []
+                                Row {
+                                    required property var modelData
+                                    required property int index
+                                    spacing: 0
+                                    Caption { text: " › "; visible: index > 0; height: 26; verticalAlignment: Text.AlignVCenter }
+                                    SoftButton {
+                                        flat: true; implicitHeight: 26; text: modelData.name
+                                        tip: modelData.path; onClicked: win.goToFolder(modelData.path)
+                                    }
+                                }
+                            }
+                            Caption { text: " › "; height: 26; verticalAlignment: Text.AlignVCenter }
+                            Label {
+                                text: selectionBar.info.name || ""; height: 26; verticalAlignment: Text.AlignVCenter
+                                color: win.pal.ink; font.weight: Font.DemiBold; leftPadding: 4
+                            }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 6
+                            Caption {
+                                objectName: "selectionDetails"
+                                Layout.fillWidth: true; elide: Text.ElideRight; leftPadding: 4
+                                text: win.describeItem(selectionBar.info)
+                            }
+                            SoftButton {
+                                flat: true; implicitHeight: 26; glyph: "\uE8C8"; tip: win.t("copy_path")
+                                visible: iconFont !== ""; onClicked: backend.copyPath(selectionBar.info.path)
+                            }
+                        }
+                    }
                     Caption {
                         Layout.fillWidth: true; elide: Text.ElideRight
+                        visible: !selectionBar.visible
                         text: win.searching ? win.t("search_hint") : win.t("explorer_hint")
                     }
                 }

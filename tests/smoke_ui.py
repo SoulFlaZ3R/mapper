@@ -87,6 +87,13 @@ try:
             shot('export-' + fmt)
             assert QMetaObject.invokeMethod(dialog, 'close')
             settle()
+        # Barra della selezione: percorso e dettagli / Selection bar: path and details
+        backend.reveal(str(root / 'Documents' / 'nested-report.txt'))
+        wait(lambda: window.findChild(QObject, 'selectionBar').property('visible'))
+        settle()
+        details = window.findChild(QObject, 'selectionDetails').property('text')
+        assert details.startswith('File · 0 B'), details
+        shot('selection')
         # Snapshot e confronto con la mappa attuale / Snapshot and comparison with the current map
         snap = str(Path(folder) / 'before.json')
         backend.saveSnapshot(snap, False)
@@ -94,7 +101,7 @@ try:
         (root / 'Roadmap.md').write_text('changed roadmap')
         (root / 'Added later.txt').touch()
         backend.scan()
-        wait(lambda: not backend.state['busy'] and backend.model.rowCount() == 9)
+        wait(lambda: not backend.state['busy'] and backend.state['total'] == 10)
         backend.compareWithSnapshot(snap)
         compare = window.findChild(QObject, 'compareDialog')
         wait(lambda: compare.property('visible'))
@@ -149,6 +156,15 @@ try:
         tree = window.findChild(QObject, 'fileList')
         rows = [item for item in tree.property('contentItem').childItems() if item.objectName() == 'fileRow']
         assert 0 < len(rows) < 100, 'ListView must virtualize delegates: ' + str(len(rows))
+        # Stato vuoto di una cartella senza contenuto / Empty state of a folder with no content
+        empty = Path(folder) / 'Empty folder'
+        empty.mkdir()
+        backend.openFolder(str(empty))
+        wait(lambda: not backend.state['busy'] and backend.state['scanned'])
+        settle()
+        title = window.findChild(QObject, 'emptyTitle').property('text')
+        assert title == backend.translations['empty_folder_title'], title
+        shot('empty-folder')
         assert not errors and not warnings, errors + warnings
         print('QT_UI_SMOKE_OK: QML, dialogs, menus, themes, resize, search/reveal, filters, export, virtualization, previews')
 finally:

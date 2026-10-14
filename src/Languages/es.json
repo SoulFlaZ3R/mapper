@@ -177,5 +177,21 @@
     "compare_incomplete": "Uno de los lados está incompleto (mapeo cancelado).",
     "compare_hint": "Los cambios de contenido se prueban por tamaño o huella; las fechas solas nunca cuentan como cambio de contenido.",
     "export_compare": "Exportar comparación…",
-    "last_comparison": "Mostrar la última comparación"
+    "last_comparison": "Mostrar la última comparación",
+    "details_folder": "Carpeta · archivos: {files}, carpetas: {folders} · {size}",
+    "details_file": "Archivo · {size}",
+    "details_link": "Vínculo (no seguido)",
+    "details_modified": "modificado el {date}",
+    "attr_readonly": "solo lectura",
+    "attr_hidden": "oculto",
+    "attr_system": "de sistema",
+    "attr_compressed": "comprimido",
+    "attr_encrypted": "cifrado",
+    "attr_offline": "solo en línea",
+    "selection_path": "Ruta del elemento seleccionado",
+    "empty_folder_title": "Esta carpeta está vacía",
+    "all_excluded_title": "Todo el contenido está excluido por tus reglas",
+    "unreadable_title": "No se puede leer esta carpeta",
+    "unreadable_hint": "Windows denegó el acceso o la ruta ya no está disponible.",
+    "show_details": "Mostrar detalles"
 }

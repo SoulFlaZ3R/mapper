@@ -177,5 +177,21 @@
     "compare_incomplete": "Uno dei due lati è incompleto (mappatura annullata).",
     "compare_hint": "Le modifiche al contenuto sono provate da dimensione o impronta; le sole date non contano mai come modifica del contenuto.",
     "export_compare": "Esporta confronto…",
-    "last_comparison": "Mostra l’ultimo confronto"
+    "last_comparison": "Mostra l’ultimo confronto",
+    "details_folder": "Cartella · file: {files}, cartelle: {folders} · {size}",
+    "details_file": "File · {size}",
+    "details_link": "Collegamento (non seguito)",
+    "details_modified": "modificato il {date}",
+    "attr_readonly": "sola lettura",
+    "attr_hidden": "nascosto",
+    "attr_system": "di sistema",
+    "attr_compressed": "compresso",
+    "attr_encrypted": "crittografato",
+    "attr_offline": "solo online",
+    "selection_path": "Percorso dell’elemento selezionato",
+    "empty_folder_title": "Questa cartella è vuota",
+    "all_excluded_title": "Tutto il contenuto è escluso dalle tue regole",
+    "unreadable_title": "Questa cartella non si può leggere",
+    "unreadable_hint": "Windows ha negato l’accesso oppure il percorso non è più disponibile.",
+    "show_details": "Mostra dettagli"
 }

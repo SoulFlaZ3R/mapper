@@ -177,5 +177,21 @@
     "compare_incomplete": "One side is incomplete (mapping cancelled).",
     "compare_hint": "Content changes are proven by size or fingerprint; dates alone never count as a content change.",
     "export_compare": "Export comparison…",
-    "last_comparison": "Show last comparison"
+    "last_comparison": "Show last comparison",
+    "details_folder": "Folder · files: {files}, folders: {folders} · {size}",
+    "details_file": "File · {size}",
+    "details_link": "Link (not followed)",
+    "details_modified": "modified {date}",
+    "attr_readonly": "read-only",
+    "attr_hidden": "hidden",
+    "attr_system": "system",
+    "attr_compressed": "compressed",
+    "attr_encrypted": "encrypted",
+    "attr_offline": "online only",
+    "selection_path": "Path of the selected item",
+    "empty_folder_title": "This folder is empty",
+    "all_excluded_title": "Everything here is excluded by your rules",
+    "unreadable_title": "This folder cannot be read",
+    "unreadable_hint": "Windows denied access or the path is no longer available.",
+    "show_details": "Show details"
 }

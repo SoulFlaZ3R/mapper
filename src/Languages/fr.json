@@ -177,5 +177,21 @@
     "compare_incomplete": "Un des côtés est incomplet (cartographie annulée).",
     "compare_hint": "Les modifications du contenu sont prouvées par la taille ou l’empreinte ; les dates seules ne comptent jamais.",
     "export_compare": "Exporter la comparaison…",
-    "last_comparison": "Afficher la dernière comparaison"
+    "last_comparison": "Afficher la dernière comparaison",
+    "details_folder": "Dossier · fichiers : {files}, dossiers : {folders} · {size}",
+    "details_file": "Fichier · {size}",
+    "details_link": "Lien (non suivi)",
+    "details_modified": "modifié le {date}",
+    "attr_readonly": "lecture seule",
+    "attr_hidden": "caché",
+    "attr_system": "système",
+    "attr_compressed": "compressé",
+    "attr_encrypted": "chiffré",
+    "attr_offline": "en ligne uniquement",
+    "selection_path": "Chemin de l’élément sélectionné",
+    "empty_folder_title": "Ce dossier est vide",
+    "all_excluded_title": "Tout le contenu est exclu par vos règles",
+    "unreadable_title": "Ce dossier est illisible",
+    "unreadable_hint": "Windows a refusé l’accès ou le chemin n’est plus disponible.",
+    "show_details": "Afficher les détails"
 }

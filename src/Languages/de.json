@@ -177,5 +177,21 @@
     "compare_incomplete": "Eine Seite ist unvollständig (Kartierung abgebrochen).",
     "compare_hint": "Inhaltsänderungen werden durch Größe oder Fingerabdruck belegt; Daten allein gelten nie als Inhaltsänderung.",
     "export_compare": "Vergleich exportieren…",
-    "last_comparison": "Letzten Vergleich anzeigen"
+    "last_comparison": "Letzten Vergleich anzeigen",
+    "details_folder": "Ordner · Dateien: {files}, Ordner: {folders} · {size}",
+    "details_file": "Datei · {size}",
+    "details_link": "Verknüpfung (nicht verfolgt)",
+    "details_modified": "geändert am {date}",
+    "attr_readonly": "schreibgeschützt",
+    "attr_hidden": "versteckt",
+    "attr_system": "System",
+    "attr_compressed": "komprimiert",
+    "attr_encrypted": "verschlüsselt",
+    "attr_offline": "nur online",
+    "selection_path": "Pfad des ausgewählten Elements",
+    "empty_folder_title": "Dieser Ordner ist leer",
+    "all_excluded_title": "Alles hier wird von deinen Regeln ausgeschlossen",
+    "unreadable_title": "Dieser Ordner kann nicht gelesen werden",
+    "unreadable_hint": "Windows hat den Zugriff verweigert oder der Pfad ist nicht mehr verfügbar.",
+    "show_details": "Details anzeigen"
 }
