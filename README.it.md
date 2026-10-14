@@ -77,13 +77,17 @@ Avviando dal codice sorgente sono salvate in `src/config.json`.
 - Scansione in background con avanzamento reale e possibilità di annullare
 - Azioni con clic destro (o ⋯): apri, mostra in Esplora risorse, copia percorso, taglia/copia/incolla, duplica, nuovo file/cartella, rinomina, elimina
 - Elimina sposta gli elementi nel **Cestino**; le copie non sovrascrivono mai (`nome - copia`, `nome - copia (2)` …); i nomi vengono controllati prima della conferma
-- **Esporta mappa**: anteprima, copia negli appunti o salvataggio come testo UTF-8; l'esportazione corrisponde esattamente all'albero mappato
+- **Esporta mappa** come albero di testo (TXT), Markdown, JSON o CSV, per tutta la mappa o una cartella (clic destro →
+  *Esporta questa cartella…*); dimensioni e date facoltative, opzione per nascondere i percorsi completi, anteprima e copia.
+  Il CSV è protetto dalla formula injection. Vedi [docs/formats.md](docs/formats.md)
+- **Esclusioni**: salta le cartelle tecniche (`.git`, `node_modules`, …), aggiungi modelli in stile `.gitignore`
+  e limita i livelli da mappare (Impostazioni → *Esclusioni e livelli…*)
 - Cinque temi (chiaro, scuro, blu, rosso, sistema) e cinque lingue (italiano, inglese, tedesco, francese, spagnolo), con anteprima dal vivo nelle Impostazioni
 - Uno stile unico e coerente per pulsanti, campi, menu, finestre di dialogo, suggerimenti e selettori; animazioni riducibili
 - Eseguibile portatile, senza installazione; preferenze in `%APPDATA%\Mapper`, oppure accanto all'exe per l'uso da chiavetta
 
 La ricerca usa l'ultima mappatura. Premi F5 per aggiornare dopo modifiche fatte da altri programmi.
-Le cartelle che non si possono leggere vengono saltate ed elencate: clic su **N non leggibili** nella barra di stato.
+Le cartelle che non si possono leggere vengono saltate ed elencate: clic su **Non leggibili: N** nella barra di stato.
 I percorsi oltre 260 caratteri sono supportati. I collegamenti simbolici e le junction NTFS sono mostrati come
 collegamenti e non vengono mai seguiti, nemmeno copiando o duplicando (vengono ricreati come collegamenti).
 La finestra non si può chiudere mentre è in corso una copia, uno spostamento o un'eliminazione.
@@ -96,7 +100,7 @@ La finestra non si può chiudere mentre è in corso una copia, uno spostamento o
 | Ctrl+L | Modifica il percorso |
 | F5 | Aggiorna la mappa |
 | Ctrl+F | Cerca |
-| Ctrl+E | Esporta mappa (anteprima, copia, salva) |
+| Ctrl+E | Esporta mappa (formato, anteprima, copia, salva) |
 | Ctrl+S | Salva la mappa con nome… |
 | Esc | Annulla mappatura/esportazione, azzera la ricerca |
 | ↑ ↓ ← → | Spostati, espandi e comprimi nell'albero |

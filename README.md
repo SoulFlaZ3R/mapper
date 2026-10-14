@@ -77,13 +77,17 @@ When run from source they are saved in `src/config.json`.
 - Background scanning with real progress and cancellation
 - Right-click (or ⋯) actions: open, show in Explorer, copy path, cut/copy/paste, duplicate, new file/folder, rename, delete
 - Delete moves items to the **Recycle Bin**; copies never overwrite (`name - copy`, `name - copy (2)` …); names are validated before confirming
-- **Export map**: preview, copy to the clipboard or save as UTF-8 text; the export is exactly the mapped tree
+- **Export map** as a text tree (TXT), Markdown, JSON or CSV, for the whole map or one folder (right-click →
+  *Export this folder…*); optional sizes and dates, an option to hide full paths, preview and copy.
+  CSV is protected against formula injection. See [docs/formats.md](docs/formats.md)
+- **Exclusions**: skip technical folders (`.git`, `node_modules`, …), add your own `.gitignore`-style
+  patterns and limit the levels to map (Settings → *Exclusions and levels…*)
 - Five themes (light, dark, blue, red, system) and five languages (Italian, English, German, French, Spanish), with live preview in Settings
 - One consistent style for buttons, fields, menus, dialogs, tooltips and selectors; optional reduced motion
 - Portable executable, no installation; preferences in `%APPDATA%\Mapper`, or next to the exe for USB use
 
 Search uses the latest map. Press F5 to refresh changes made by other applications.
-Folders that cannot be read are skipped and listed: click **N not readable** in the status bar.
+Folders that cannot be read are skipped and listed: click **Not readable: N** in the status bar.
 Paths longer than 260 characters are supported. Symbolic links and NTFS junctions are shown as links
 and never followed, also when copying or duplicating (they are recreated as links).
 The window cannot close while a copy/move/delete is still running.
@@ -96,7 +100,7 @@ The window cannot close while a copy/move/delete is still running.
 | Ctrl+L | Edit the folder path |
 | F5 | Refresh the map |
 | Ctrl+F | Search |
-| Ctrl+E | Export map (preview, copy, save) |
+| Ctrl+E | Export map (format, preview, copy, save) |
 | Ctrl+S | Save the map as… |
 | Escape | Cancel mapping/export, clear the search |
 | ↑ ↓ ← → | Move, expand and collapse in the tree |
