@@ -74,7 +74,11 @@ When run from source they are saved in `src/config.json`.
 - Virtualized tree with expand/collapse, expand all/collapse all and full keyboard navigation; open folders stay open after refreshes and file actions
 - **Search as you type** across the whole map, with highlighted matches and the location of each result; *Show in tree* opens the parent folders and selects the item
 - Interactive donut chart and complete, scrollable legend; click a file type to filter, click again (or the chip) to clear
-- Background scanning with real progress and cancellation
+- **Selection bar** under the tree: clickable path of the selected item (click a step to jump to that folder),
+  size, date and attributes; for folders the files, subfolders and total size it contains
+- Clear empty states: empty folder, no search results, everything excluded by your rules (with a shortcut to the
+  rules) or folder not readable (with a shortcut to the details)
+- Background scanning with live count of the items found and cancellation
 - Right-click (or ⋯) actions: open, show in Explorer, copy path, cut/copy/paste, duplicate, new file/folder, rename, delete
 - Delete moves items to the **Recycle Bin**; copies never overwrite (`name - copy`, `name - copy (2)` …); names are validated before confirming
 - **Export map** as a text tree (TXT), Markdown, JSON or CSV, for the whole map or one folder (right-click →
@@ -88,7 +92,8 @@ When run from source they are saved in `src/config.json`.
 - **Exclusions**: skip technical folders (`.git`, `node_modules`, …), add your own `.gitignore`-style
   patterns and limit the levels to map (Settings → *Exclusions and levels…*)
 - Five themes (light, dark, blue, red, system) and five languages (Italian, English, German, French, Spanish), with live preview in Settings
-- One consistent style for buttons, fields, menus, dialogs, tooltips and selectors; optional reduced motion
+- One consistent style for buttons, fields, menus, dialogs, tooltips and selectors; optional reduced motion;
+  text contrast at least 4.5:1 (WCAG AA) in every theme, names and descriptions for screen readers
 - Portable executable, no installation; preferences in `%APPDATA%\Mapper`, or next to the exe for USB use
 
 Search uses the latest map. Press F5 to refresh changes made by other applications.

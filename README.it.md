@@ -74,7 +74,11 @@ Avviando dal codice sorgente sono salvate in `src/config.json`.
 - Albero virtualizzato con espandi/comprimi, espandi tutto/comprimi tutto e navigazione completa da tastiera; le cartelle aperte restano aperte dopo un aggiornamento o un'azione sui file
 - **Ricerca mentre scrivi** in tutta la mappa, con le corrispondenze evidenziate e la posizione di ogni risultato; *Mostra nell'albero* apre le cartelle che lo contengono e seleziona l'elemento
 - Grafico ad anello interattivo e legenda completa e scorrevole; clicca un tipo di file per filtrare, di nuovo (o sull'etichetta) per togliere il filtro
-- Scansione in background con avanzamento reale e possibilità di annullare
+- **Barra della selezione** sotto l'albero: percorso cliccabile dell'elemento selezionato (clic su un passo per
+  andare a quella cartella), dimensione, data e attributi; per le cartelle i file, le sottocartelle e la dimensione totale
+- Stati vuoti chiari: cartella vuota, nessun risultato, tutto escluso dalle tue regole (con scorciatoia alle
+  regole) oppure cartella non leggibile (con scorciatoia ai dettagli)
+- Scansione in background con conteggio dal vivo degli elementi trovati e possibilità di annullare
 - Azioni con clic destro (o ⋯): apri, mostra in Esplora risorse, copia percorso, taglia/copia/incolla, duplica, nuovo file/cartella, rinomina, elimina
 - Elimina sposta gli elementi nel **Cestino**; le copie non sovrascrivono mai (`nome - copia`, `nome - copia (2)` …); i nomi vengono controllati prima della conferma
 - **Esporta mappa** come albero di testo (TXT), Markdown, JSON o CSV, per tutta la mappa o una cartella (clic destro →
@@ -88,7 +92,8 @@ Avviando dal codice sorgente sono salvate in `src/config.json`.
 - **Esclusioni**: salta le cartelle tecniche (`.git`, `node_modules`, …), aggiungi modelli in stile `.gitignore`
   e limita i livelli da mappare (Impostazioni → *Esclusioni e livelli…*)
 - Cinque temi (chiaro, scuro, blu, rosso, sistema) e cinque lingue (italiano, inglese, tedesco, francese, spagnolo), con anteprima dal vivo nelle Impostazioni
-- Uno stile unico e coerente per pulsanti, campi, menu, finestre di dialogo, suggerimenti e selettori; animazioni riducibili
+- Uno stile unico e coerente per pulsanti, campi, menu, finestre di dialogo, suggerimenti e selettori; animazioni riducibili;
+  contrasto del testo almeno 4,5:1 (WCAG AA) in ogni tema, nomi e descrizioni per i lettori di schermo
 - Eseguibile portatile, senza installazione; preferenze in `%APPDATA%\Mapper`, oppure accanto all'exe per l'uso da chiavetta
 
 La ricerca usa l'ultima mappatura. Premi F5 per aggiornare dopo modifiche fatte da altri programmi.
