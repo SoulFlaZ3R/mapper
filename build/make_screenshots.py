@@ -131,7 +131,7 @@ def main():
 
             # 4. Filtro per tipo dal grafico / File type filter from the chart
             backend.setExtension('.pdf')
-            wait(lambda: backend.model.rowCount() > 0 and all(r['extension'] == '.pdf' for r in backend.model.rows))
+            wait(lambda: backend.model.rowCount() > 0 and all(backend.model.item(i)['extension'] == '.pdf' for i in range(backend.model.rowCount())))
             shot('05-filter-type')
             backend.clearFilters()
             wait(lambda: backend.state['extension'] == '')

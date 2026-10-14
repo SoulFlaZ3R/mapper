@@ -1,6 +1,7 @@
 """
 Qt models and async filesystem services; workers never touch Qt objects.
 Modelli Qt e servizi asincroni sul filesystem; i worker non toccano oggetti Qt.
+La logica sul filesystem vive in mapper_core (senza Qt) / Filesystem logic lives in mapper_core (no Qt).
 """
 import json
 import os
@@ -10,17 +11,23 @@ import subprocess
 import sys
 import tempfile
 import threading
+from array import array
+from itertools import islice
 from pathlib import Path
 from PySide6.QtCore import (QAbstractListModel, QFile, QLocale, QModelIndex, QObject, Property,
                             QTimer, Qt, QUrl, Signal, Slot)
 from PySide6.QtGui import QDesktopServices, QGuiApplication
-from scanner import count_items, snapshot
+from mapper_core import DIR, FILE, fsops, scan as scan_tree
+from mapper_core.model import KIND_NAMES, NO_EXTENSION
+from mapper_core.paths import display, extended, normalize
 
 VERSION = '1.5.0'
 THEMES = ('light', 'dark', 'blue', 'red', 'system')
 LANGUAGES = ('it', 'en', 'de', 'fr', 'es')
 PREVIEW_LINES = 1200
 MAX_RECENT = 6
+# Errori di scansione passati alla finestra di dettaglio / Scan errors passed to the details dialog
+MAX_ERRORS_SHOWN = 500
 
 BASE = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 
@@ -49,6 +56,19 @@ def config_location():
 CONFIG = config_location()
 
 
+def resolve(path):
+    """
+    Percorso reale (link, '..', nomi brevi 8.3 risolti), anche oltre 260 caratteri.
+    Real path (links, '..', 8.3 short names resolved), also beyond 260 characters.
+    """
+    return display(os.path.realpath(extended(normalize(path))))
+
+
+def inside(path, root):
+    """path è root o un suo discendente (confronto Windows) / path is root or below it (Windows rules)."""
+    return Path(path).is_relative_to(Path(root))
+
+
 class UserError(Exception):
     """Errore con messaggio tradotto / Error carrying a translation key."""
     def __init__(self, key):
@@ -57,11 +77,19 @@ class UserError(Exception):
 
 
 class FileModel(QAbstractListModel):
-    fields = ('itemName', 'fullPath', 'directory', 'level', 'expanded', 'extension', 'relativePath', 'parentPath')
+    """
+    Righe visibili = indici nell'albero della scansione: nessuna copia per elemento.
+    Visible rows = indices into the scan tree: no per-item copies.
+    """
+    fields = ('itemName', 'fullPath', 'directory', 'level', 'expanded', 'extension', 'relativePath',
+              'parentPath', 'kind', 'size', 'modified')
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.rows = []
+        self.rows = array('i')
+        self.tree = None
+        self.expanded = frozenset()
+        self.searching = False
 
     def roleNames(self):
         return {Qt.UserRole + i + 1: name.encode() for i, name in enumerate(self.fields)}
@@ -69,51 +97,89 @@ class FileModel(QAbstractListModel):
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.rows)
 
+    @staticmethod
+    def _value(tree, expanded, searching, entry, field):
+        if field == 'itemName':
+            return tree.names[entry]
+        if field == 'fullPath':
+            return tree.path(entry)
+        if field == 'directory':
+            return tree.kinds[entry] == DIR
+        if field == 'level':
+            return 0 if searching else tree.levels[entry]
+        if field == 'expanded':
+            return tree.kinds[entry] == DIR and os.path.normcase(tree.dir_path(entry)) in expanded
+        if field == 'extension':
+            return tree.extension(entry)
+        if field == 'relativePath':
+            return tree.relative(entry)
+        if field == 'parentPath':
+            return tree.parent_path(entry)
+        if field == 'kind':
+            return KIND_NAMES[tree.kinds[entry]]
+        if field == 'size':
+            return float(tree.size(entry))
+        return tree.mtime(entry)
+
     def data(self, index, role):
         i = role - Qt.UserRole - 1
         if index.isValid() and 0 <= index.row() < len(self.rows) and 0 <= i < len(self.fields):
-            return self.rows[index.row()].get(self.fields[i])
+            return self._value(self.tree, self.expanded, self.searching, self.rows[index.row()], self.fields[i])
         return None
+
+    def item(self, row):
+        """Tutti i campi di una riga (test e diagnostica) / All fields of a row (tests, diagnostics)."""
+        entry = self.rows[row]
+        return {f: self._value(self.tree, self.expanded, self.searching, entry, f) for f in self.fields}
 
     @Slot(str, result=int)
     def indexOf(self, path):
-        for i, row in enumerate(self.rows):
-            if row['fullPath'] == path:
-                return i
-        return -1
+        entry = self.tree.index_of(path) if self.tree else -1
+        if entry < 0:
+            return -1
+        try:
+            return self.rows.index(entry)
+        except ValueError:
+            return -1
 
-    def replace(self, rows, reset=False):
+    def replace(self, rows, tree, expanded, searching, reset=False):
         """
         Aggiorna con rimozioni/inserimenti minimi così la vista mantiene scroll e selezione.
         Updates with minimal removals/insertions so the view keeps scroll and selection.
         """
-        old = self.rows
-        if reset or not old or not rows:
+        old, old_tree, old_expanded, old_searching = self.rows, self.tree, self.expanded, self.searching
+        if reset or not len(old) or not len(rows) or old_tree is None or tree is None:
             self.beginResetModel()
-            self.rows = rows
+            self.rows, self.tree, self.expanded, self.searching = rows, tree, expanded, searching
             self.endResetModel()
             return
+        same_tree = old_tree is tree
+        def same(a, b):
+            return a == b if same_tree else old_tree.path(a) == tree.path(b)
+        def state(t, exp, search, entry):
+            return (self._value(t, exp, search, entry, 'expanded'), self._value(t, exp, search, entry, 'level'))
         n, m = len(old), len(rows)
         head = 0
-        while head < min(n, m) and old[head]['fullPath'] == rows[head]['fullPath']:
+        while head < min(n, m) and same(old[head], rows[head]):
             head += 1
         tail = 0
-        while tail < min(n, m) - head and old[n - 1 - tail]['fullPath'] == rows[m - 1 - tail]['fullPath']:
+        while tail < min(n, m) - head and same(old[n - 1 - tail], rows[m - 1 - tail]):
             tail += 1
         # Righe rimaste al loro posto ma con dati diversi (es. freccia espansa)
         # Rows that kept their place but changed data (e.g. expanded arrow)
-        changed = [i for i in range(head) if old[i] != rows[i]]
-        changed += [m - 1 - j for j in range(tail) if old[n - 1 - j] != rows[m - 1 - j]]
+        kept = list(range(head)) + [m - 1 - j for j in range(tail)]
+        old_rows_of = {k: (k if k < head else n - (m - k)) for k in kept}
+        changed = sorted(k for k in kept if state(old_tree, old_expanded, old_searching, old[old_rows_of[k]])
+                         != state(tree, expanded, searching, rows[k]))
         if n - tail > head:
             self.beginRemoveRows(QModelIndex(), head, n - tail - 1)
             self.rows = old[:head] + old[n - tail:]
             self.endRemoveRows()
         if m - tail > head:
             self.beginInsertRows(QModelIndex(), head, m - tail - 1)
-            self.rows = self.rows[:head] + rows[head:m - tail] + self.rows[head:]
+            self.rows, self.tree, self.expanded, self.searching = rows, tree, expanded, searching
             self.endInsertRows()
-        self.rows = rows
-        changed.sort()
+        self.rows, self.tree, self.expanded, self.searching = rows, tree, expanded, searching
         if changed:
             self.dataChanged.emit(self.index(changed[0]), self.index(changed[-1]))
 
@@ -130,8 +196,8 @@ class MapperBackend(QObject):
         self.config_path = Path(config_path or CONFIG)
         self.model = FileModel(self)
         self._state = dict(path='', busy=False, progress=-1.0, status='', error=False, scanned=False,
-                           total=0, folders=0, files=0, shown=0, query='', extension='',
-                           theme='light', language='en', reducedMotion=False, clipboard='',
+                           total=0, folders=0, files=0, links=0, errors=0, found=0, shown=0, query='',
+                           extension='', theme='light', language='en', reducedMotion=False, clipboard='',
                            clipboardMode='', version=VERSION, cancellable=True, rootName='',
                            previewLimit=PREVIEW_LINES)
         try:
@@ -148,12 +214,16 @@ class MapperBackend(QObject):
                            theme=theme if theme in THEMES else 'light',
                            reducedMotion=bool(prefs.get('reducedMotion', False)))
         self._translations = self._load_translations()
-        self._records, self._lines, self._extensions = [], [], []
+        self._tree = None
+        self._extensions = []
+        # Cartelle aperte come percorsi normcase: sopravvivono a una nuova scansione
+        # Open folders as normcase paths: they survive a re-scan
         self._expanded = set()
         self._scanned_root = None
         self._status_source = None
         self._pending_reveal = None
         self._clipboard = None
+        self._note = None
         self._cancel = threading.Event()
         self._queue = queue.Queue()
         self._closed = False
@@ -184,11 +254,22 @@ class MapperBackend(QObject):
 
     @Slot(result=str)
     def preview(self):
-        return '\n'.join(self._lines[:PREVIEW_LINES])
+        return '\n'.join(islice(self._tree.lines(), PREVIEW_LINES)) if self._tree else ''
 
     @Slot(result=int)
     def lineCount(self):
-        return len(self._lines)
+        return self._tree.line_count() if self._tree else 0
+
+    @Slot(result='QVariantList')
+    def scanErrors(self):
+        """Elementi non letti nell'ultima scansione / Items not read in the latest scan."""
+        if not self._tree:
+            return []
+        return [dict(path=e.path, reason=e.reason) for e in self._tree.errors[:MAX_ERRORS_SHOWN]]
+
+    def map_text(self):
+        """Mappa completa dell'ultima scansione / Full map of the latest scan."""
+        return '\n'.join(self._tree.lines()) if self._tree else ''
 
     # ── Stato, traduzioni, errori / State, translations, errors ─────────
     def _load_translations(self):
@@ -242,12 +323,14 @@ class MapperBackend(QObject):
                 kind, payload = self._queue.get_nowait()
             except queue.Empty:
                 break
-            if kind == 'progress':
-                self._set(progress=payload)
+            if kind == 'found':
+                if self._state['busy']:
+                    self._set(found=payload)
+                    self._status('scanning_found', count=payload)
             elif kind == 'filter':
-                revision, rows, reset = payload
+                revision, rows, tree, expanded, searching, reset = payload
                 if revision == self._filter_revision:
-                    self.model.replace(rows, reset)
+                    self.model.replace(rows, tree, expanded, searching, reset)
                     self._set(shown=len(rows))
                     if self._pending_reveal:
                         row = self.model.indexOf(self._pending_reveal)
@@ -274,13 +357,14 @@ class MapperBackend(QObject):
         path = url.toLocalFile() if url.isLocalFile() else value.strip().strip('"')
         if path != self._state['path']:
             self._filter_revision += 1
-            self._records, self._lines = [], []
+            self._tree = None
             self._extensions = []
             self.extensionsChanged.emit()
             self._expanded.clear()
             self._scanned_root = None
-            self.model.replace([], True)
-            self._set(scanned=False, total=0, files=0, folders=0, shown=0, query='', extension='', rootName='')
+            self.model.replace(array('i'), None, frozenset(), False, True)
+            self._set(scanned=False, total=0, files=0, folders=0, links=0, errors=0, shown=0, query='',
+                      extension='', rootName='')
         self._set(path=path)
 
     @Slot(str)
@@ -292,7 +376,7 @@ class MapperBackend(QObject):
         """
         url = QUrl(value)
         path = url.toLocalFile() if url.isLocalFile() else value.strip().strip('"')
-        if os.path.isfile(path):
+        if path and os.path.isfile(extended(normalize(os.path.expanduser(path)))):
             path = os.path.dirname(path)
         # Un percorso errato non cancella la mappa attuale / A wrong path keeps the current map
         if self._state['busy']:
@@ -300,7 +384,7 @@ class MapperBackend(QObject):
         if not path:
             self._status('no_path', error=True)
             return
-        if not os.path.isdir(os.path.expanduser(path)):
+        if not os.path.isdir(extended(normalize(os.path.expanduser(path)))):
             self._status('invalid_path', error=True)
             return
         self.setPath(path)
@@ -313,35 +397,39 @@ class MapperBackend(QObject):
         if not self._state['path']:
             self._status('no_path', error=True)
             return
-        root = os.path.realpath(os.path.expanduser(self._state['path']))
-        if not os.path.isdir(root):
+        root = resolve(os.path.expanduser(self._state['path']))
+        if not os.path.isdir(extended(root)):
             self._status('invalid_path', error=True)
             return
-        self._set(path=root)
+        self._set(path=root, found=0)
         self._status('scanning')
         def job(cancel):
-            total = max(count_items(root, cancel), 1)
-            last = [-1]
-            def progress(n):
-                pct = min(100, int(n * 100 / total))
-                if pct != last[0]:
-                    last[0] = pct
-                    self._queue.put(('progress', pct / 100))
-            return snapshot(root, cancel, progress)
-        def done(result):
-            self._records, self._lines, counts, folders, files = result
+            tree = scan_tree(root, cancel=cancel, progress=lambda n: self._queue.put(('found', n)))
+            # Indice delle cartelle pronto nel worker, non nel thread dell'interfaccia
+            # Folder index built in the worker, not on the UI thread
+            tree.dir_index()
+            return tree
+        def done(tree):
             same_root = root == self._scanned_root
             # Un nuovo scan della stessa cartella mantiene le cartelle aperte
             # Re-mapping the same folder keeps open folders open
-            folders_now = {r['fullPath'] for r in self._records if r['directory']}
-            self._expanded = self._expanded & folders_now if same_root else set()
+            folders = tree.dir_index()
+            self._expanded = {p for p in self._expanded if p in folders} if same_root else set()
+            self._tree = tree
             self._scanned_root = root
-            self._extensions = [dict(label=ext, count=n, fraction=n / max(files, 1)) for ext, n in counts.most_common()]
+            self._extensions = [dict(label=ext, count=n, fraction=n / max(tree.files, 1))
+                                for ext, n in tree.extensions.most_common()]
             self.extensionsChanged.emit()
             self._remember(root)
-            self._set(scanned=True, total=len(self._records), folders=folders, files=files,
-                      rootName=os.path.basename(root) or root)
-            self._status('scan_complete', count=len(self._records))
+            self._set(scanned=True, total=len(tree), folders=tree.folders, files=tree.files, links=tree.links,
+                      errors=len(tree.errors), rootName=os.path.basename(root) or root)
+            if self._note:
+                note, self._note = self._note, None
+                note()
+            elif tree.errors:
+                self._status('scan_complete_errors', count=len(tree), errors=len(tree.errors))
+            else:
+                self._status('scan_complete', count=len(tree))
             self._filter(reset=not same_root)
         self._work(job, done)
 
@@ -384,46 +472,50 @@ class MapperBackend(QObject):
 
     def _filter(self, reset=False):
         self._filter_revision += 1
-        revision, records = self._filter_revision, self._records
+        revision, tree = self._filter_revision, self._tree
         query, ext = self._state['query'].casefold().strip(), self._state['extension']
-        expanded, root = set(self._expanded), self._scanned_root
+        expanded = frozenset(self._expanded)
+        searching = bool(query or ext)
         def run():
-            rows, visible_dirs = [], {root}
-            searching = bool(query or ext)
-            for record in records:
-                if searching:
-                    if query not in record['itemName'].casefold():
+            rows = array('i')
+            if tree is not None and searching:
+                kinds = tree.kinds
+                for i, name in enumerate(tree.names):
+                    if query and query not in name.casefold():
                         continue
-                    if ext and (record['directory'] or (record['extension'] or '—') != ext):
+                    if ext and (kinds[i] != FILE or (tree.extension(i) or NO_EXTENSION) != ext):
                         continue
-                elif record['parentPath'] not in visible_dirs:
-                    continue
-                row = dict(record, expanded=record['fullPath'] in expanded)
-                if searching:
-                    row['level'] = 0
-                elif row['expanded']:
-                    visible_dirs.add(record['fullPath'])
-                rows.append(row)
+                    rows.append(i)
+            elif tree is not None:
+                # Visita solo ciò che è visibile: una cartella chiusa salta il suo sottoalbero
+                # Visits only what is visible: a closed folder skips its subtree
+                folders = tree.dir_index()
+                open_dirs = {folders[p] for p in expanded if p in folders}
+                kinds, ends, i, n = tree.kinds, tree.ends, 0, len(tree)
+                while i < n:
+                    rows.append(i)
+                    i = i + 1 if kinds[i] == DIR and i in open_dirs else ends[i]
             if not self._closed:
-                self._queue.put(('filter', (revision, rows, reset)))
+                self._queue.put(('filter', (revision, rows, tree, expanded, searching, reset)))
         threading.Thread(target=run, daemon=True).start()
 
     @Slot(str)
     def toggle(self, path):
-        if path in self._expanded:
-            self._expanded.remove(path)
+        key = os.path.normcase(path)
+        if key in self._expanded:
+            self._expanded.remove(key)
         else:
-            self._expanded.add(path)
+            self._expanded.add(key)
         self._filter()
 
     @Slot(str, bool)
     def setExpanded(self, path, expanded):
-        if (path in self._expanded) != expanded:
+        if (os.path.normcase(path) in self._expanded) != expanded:
             self.toggle(path)
 
     @Slot(bool)
     def expandAll(self, expanded):
-        self._expanded = {r['fullPath'] for r in self._records if r['directory']} if expanded else set()
+        self._expanded = set(self._tree.dir_index()) if expanded and self._tree else set()
         self._filter()
 
     @Slot(str)
@@ -438,7 +530,7 @@ class MapperBackend(QObject):
         current = root
         for part in Path(os.path.relpath(path, root)).parts[:-1]:
             current = os.path.join(current, part)
-            self._expanded.add(current)
+            self._expanded.add(os.path.normcase(current))
         self._pending_reveal = path
         self.clearFilters()
 
@@ -446,7 +538,7 @@ class MapperBackend(QObject):
     @Slot(str)
     def openPath(self, path):
         try:
-            target = self._checked(path)
+            target = self._checked(path)[0]
             if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(target))):
                 raise OSError(str(target))
         except (OSError, UserError) as exc:
@@ -456,9 +548,9 @@ class MapperBackend(QObject):
     def showInFolder(self, path):
         """Apre Esplora risorse con l'elemento selezionato / Opens Explorer with the item selected."""
         try:
-            target = self._checked(path)
+            target = self._checked(path)[0]
             if sys.platform == 'win32':
-                subprocess.Popen(f'explorer /select,"{target}"')
+                subprocess.Popen(['explorer', f'/select,{target}'])
             elif not QDesktopServices.openUrl(QUrl.fromLocalFile(str(target.parent))):
                 raise OSError(str(target.parent))
         except (OSError, UserError) as exc:
@@ -471,8 +563,8 @@ class MapperBackend(QObject):
 
     @Slot()
     def copyMap(self):
-        if self._lines:
-            QGuiApplication.clipboard().setText('\n'.join(self._lines))
+        if self._tree:
+            QGuiApplication.clipboard().setText(self.map_text())
             self._status('map_copied')
 
     @Slot(str)
@@ -481,17 +573,18 @@ class MapperBackend(QObject):
         Salva la mappa dell'ultima scansione (la stessa dell'anteprima), in modo atomico.
         Saves the latest scan's map (the same as the preview), atomically.
         """
-        if not self._state['scanned'] or self._state['busy']:
+        if not self._state['scanned'] or self._state['busy'] or not self._tree:
             return
         destination = QUrl(url).toLocalFile() if QUrl(url).isLocalFile() else url
-        text = '\n'.join(self._lines) + '\n'
+        tree = self._tree
         def job(cancel):
             temp_path = None
             try:
                 with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=Path(destination).parent,
                                                  prefix='.mapper-', suffix='.tmp', delete=False) as handle:
                     temp_path = handle.name
-                    handle.write(text)
+                    for line in tree.lines():
+                        handle.write(line + '\n')
                 if not cancel.is_set():
                     os.replace(temp_path, destination)
             finally:
@@ -503,10 +596,11 @@ class MapperBackend(QObject):
     @Slot(str, str)
     def clipboard(self, path, mode):
         try:
-            self._clipboard = (str(self._checked(path)), mode)
-            self._set(clipboard=self._clipboard[0], clipboardMode=mode)
+            target, resolved = self._checked(path)
+            self._clipboard = (str(target), mode, resolved)
+            self._set(clipboard=str(target), clipboardMode=mode)
             self._status('clipboard_ready', name=os.path.basename(path))
-        except UserError as exc:
+        except (UserError, OSError) as exc:
             self._error(exc)
 
     @Slot(str, result=bool)
@@ -518,12 +612,28 @@ class MapperBackend(QObject):
             return False
 
     def _checked(self, path):
-        # Confronto su percorsi risolti: gestisce nomi brevi 8.3 (RUNNER~1), '..' e link
-        # Compare resolved paths: handles 8.3 short names (RUNNER~1), '..' and links
-        root, target = Path(self._state['path']).resolve(), Path(path).absolute()
-        if not target.resolve().is_relative_to(root):
+        """
+        Percorso dentro la radice mappata, confrontato dopo aver risolto link, '..' e nomi 8.3.
+        Restituisce (percorso, percorso risolto) per poterlo ricontrollare prima di agire.
+        Path inside the mapped root, compared after resolving links, '..' and 8.3 names.
+        Returns (path, resolved path) so it can be checked again right before acting.
+        """
+        target = normalize(path)
+        resolved = resolve(target)
+        if not inside(resolved, resolve(self._state['path'])):
             raise UserError('error_outside_root')
-        return target
+        return Path(target), resolved
+
+    def _recheck(self, target, resolved):
+        """
+        Nel worker, subito prima di agire: il percorso non deve essere cambiato dopo il clic
+        (es. cartella sostituita da una junction verso l'esterno).
+        In the worker, right before acting: the path must not have changed since the click
+        (e.g. a folder swapped for a junction pointing outside).
+        """
+        now = resolve(target)
+        if os.path.normcase(now) != os.path.normcase(resolved) or not inside(now, resolve(self._state['path'])):
+            raise UserError('error_path_changed')
 
     @staticmethod
     def _name(name):
@@ -541,10 +651,11 @@ class MapperBackend(QObject):
 
     def _copy_name(self, dest):
         """'nome - copia.ext', poi 'nome - copia (2).ext' … / 'name - copy.ext', then '(2)' …"""
-        stem, suffix = (dest.name, '') if dest.is_dir() else (dest.stem, dest.suffix)
+        is_dir = os.path.isdir(extended(str(dest)))
+        stem, suffix = (dest.name, '') if is_dir else (dest.stem, dest.suffix)
         base = stem + self._translations['copy_suffix']
         candidate, n = dest.with_name(base + suffix), 2
-        while candidate.exists():
+        while os.path.lexists(extended(str(candidate))):
             candidate, n = dest.with_name(f'{base} ({n}){suffix}'), n + 1
         return candidate
 
@@ -553,8 +664,9 @@ class MapperBackend(QObject):
         if self._state['busy']:
             return
         try:
-            target = self._checked(path)
-            if target.resolve() == Path(self._state['path']).resolve() and action in ('delete', 'rename', 'clone'):
+            target, resolved = self._checked(path)
+            root = resolve(self._state['path'])
+            if os.path.normcase(resolved) == os.path.normcase(root) and action in ('delete', 'rename', 'clone'):
                 raise UserError('error_root_locked')
             if action in ('rename', 'new_file', 'new_folder'):
                 name = self._name(name)
@@ -562,47 +674,62 @@ class MapperBackend(QObject):
             if action not in ('delete', 'rename', 'new_file', 'new_folder', 'paste', 'clone') or (
                     action == 'paste' and not clipboard):
                 return
+            def exists(p):
+                return os.path.lexists(extended(str(p)))
+            def is_dir(p):
+                return os.path.isdir(extended(str(p)))
             def job(cancel):
+                self._recheck(target, resolved)
                 if action == 'delete':
                     self._trash(target)
                 elif action == 'rename':
                     dest = target.with_name(name)
                     # Su Windows cambiare solo le maiuscole è lecito / Case-only renames are legal on Windows
-                    if dest.exists() and not dest.samefile(target):
+                    if exists(dest) and not os.path.samefile(extended(str(dest)), extended(str(target))):
                         raise UserError('error_name_exists')
-                    target.rename(dest)
+                    os.rename(extended(str(target)), extended(str(dest)))
                 elif action in ('new_file', 'new_folder'):
-                    dest = (target if target.is_dir() else target.parent) / name
-                    if dest.exists():
+                    dest = (target if is_dir(target) else target.parent) / name
+                    if exists(dest):
                         raise UserError('error_name_exists')
                     if action == 'new_folder':
-                        dest.mkdir()
+                        os.mkdir(extended(str(dest)))
                     else:
-                        with dest.open('x'):
+                        with open(extended(str(dest)), 'x'):
                             pass
                 else:
                     if action == 'paste':
-                        source = self._checked(clipboard[0])
-                        dest = (target if target.is_dir() else target.parent) / source.name
+                        source = Path(clipboard[0])
+                        self._recheck(source, clipboard[2])
+                        dest = (target if is_dir(target) else target.parent) / source.name
                     else:
                         source, dest = target, target
-                    if not source.exists():
+                    if not exists(source):
                         raise UserError('error_source_missing')
                     move = action == 'paste' and clipboard[1] == 'cut'
-                    if move and dest.exists() and dest.samefile(source):
+                    if move and exists(dest) and os.path.samefile(extended(str(dest)), extended(str(source))):
                         return
-                    if source.is_dir() and dest.resolve().is_relative_to(source.resolve()) and (move or dest != source):
+                    source_real = resolve(source)
+                    # Mai copiare o spostare una cartella dentro sé stessa (anche tramite junction)
+                    # Never copy or move a folder into itself (junctions included)
+                    if is_dir(source) and inside(resolve(dest.parent), source_real) and (move or dest != source):
                         raise UserError('error_copy_into_self')
-                    if dest.exists():
+                    if exists(dest):
                         if move:
                             raise UserError('error_name_exists')
                         dest = self._copy_name(dest)
+                    if is_dir(source) and not move and inside(resolve(dest.parent), source_real):
+                        raise UserError('error_copy_into_self')
                     if move:
-                        shutil.move(str(source), str(dest))
-                    elif source.is_dir():
-                        shutil.copytree(source, dest, symlinks=True)
+                        report = fsops.move(source, dest)
+                    elif is_dir(source):
+                        report = fsops.copy_tree(source, dest)
                     else:
-                        shutil.copy2(source, dest, follow_symlinks=False)
+                        shutil.copy2(extended(str(source)), extended(str(dest)), follow_symlinks=False)
+                        report = fsops.CopyReport()
+                    if report.skipped:
+                        skipped = len(report.skipped)
+                        self._note = lambda: self._status('links_skipped', count=skipped)
             def done(_):
                 if action == 'paste' and clipboard[1] == 'cut':
                     self._clipboard = None

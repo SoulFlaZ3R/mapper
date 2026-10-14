@@ -97,5 +97,19 @@
     "error_root_locked": "Le dossier cartographié lui-même ne peut pas être renommé, dupliqué ou supprimé.",
     "error_copy_into_self": "Un dossier ne peut pas être copié ou déplacé dans lui-même.",
     "error_source_missing": "L’élément à coller n’existe plus.",
-    "error_trash": "Impossible de déplacer l’élément vers la Corbeille. Rien n’a été supprimé."
+    "error_trash": "Impossible de déplacer l’élément vers la Corbeille. Rien n’a été supprimé.",
+    "scanning_found": "Cartographie en cours… {count} éléments trouvés",
+    "scan_complete_errors": "Cartographie terminée · {count} éléments · illisibles : {errors}",
+    "scan_errors_button": "Illisibles : {count}",
+    "scan_errors_title": "Éléments non lus",
+    "scan_errors_intro": "Ces éléments ont été ignorés pendant la cartographie ; tout le reste figure dans la carte.",
+    "errors_more": "Affichage des {shown} premiers sur {total}.",
+    "reason_access_denied": "Accès refusé",
+    "reason_not_found": "N’existe plus",
+    "reason_path_too_long": "Chemin trop long",
+    "reason_depth_limit": "Trop profond (plus de 500 niveaux)",
+    "reason_error": "Erreur de lecture",
+    "link_item": "lien",
+    "error_path_changed": "L’élément a changé après la sélection. Rien n’a été fait : actualisez la carte (F5).",
+    "links_skipped": "Terminé, mais {count} liens (jonctions ou liens symboliques) n’ont pas pu être recréés et n’ont pas été copiés."
 }

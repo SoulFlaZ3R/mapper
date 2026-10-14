@@ -22,6 +22,9 @@
     <windowsSettings>
       <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
       <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <!-- Percorsi oltre 260 caratteri se abilitati in Windows; il core usa comunque il prefisso esteso -->
+      <!-- Paths over 260 characters when enabled in Windows; the core uses the extended-path prefix anyway -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>
 

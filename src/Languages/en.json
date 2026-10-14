@@ -97,5 +97,19 @@
     "error_root_locked": "The mapped folder itself cannot be renamed, duplicated or deleted.",
     "error_copy_into_self": "A folder cannot be copied or moved into itself.",
     "error_source_missing": "The item to paste no longer exists.",
-    "error_trash": "Could not move the item to the Recycle Bin. Nothing was deleted."
+    "error_trash": "Could not move the item to the Recycle Bin. Nothing was deleted.",
+    "scanning_found": "Mapping… {count} items found",
+    "scan_complete_errors": "Mapping complete · {count} items · not readable: {errors}",
+    "scan_errors_button": "Not readable: {count}",
+    "scan_errors_title": "Items not read",
+    "scan_errors_intro": "These items were skipped while mapping; everything else is in the map.",
+    "errors_more": "Showing the first {shown} of {total}.",
+    "reason_access_denied": "Access denied",
+    "reason_not_found": "No longer exists",
+    "reason_path_too_long": "Path too long",
+    "reason_depth_limit": "Too deep (over 500 levels)",
+    "reason_error": "Read error",
+    "link_item": "link",
+    "error_path_changed": "The item changed after it was selected. Nothing was done: refresh the map (F5).",
+    "links_skipped": "Done, but {count} links (junctions or symbolic links) could not be recreated and were not copied."
 }

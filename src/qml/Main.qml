@@ -622,6 +622,7 @@ ApplicationWindow {
                                 required property string extension
                                 required property string relativePath
                                 required property string parentPath
+                                required property string kind
                                 required property int index
                                 readonly property bool active: hovered || ListView.isCurrentItem
                                 readonly property string location: relativePath.length > itemName.length
@@ -652,7 +653,7 @@ ApplicationWindow {
                                         TapHandler { enabled: row.directory; onTapped: backend.toggle(row.fullPath) }
                                     }
                                     Icon {
-                                        glyph: row.directory ? (row.expanded && !win.searching ? "\uE838" : "\uE8B7") : "\uE8A5"
+                                        glyph: row.kind === "link" ? "\uE71B" : row.directory ? (row.expanded && !win.searching ? "\uE838" : "\uE8B7") : "\uE8A5"
                                         color: row.directory ? win.pal.accent : win.pal.muted
                                     }
                                     ColumnLayout {
@@ -664,7 +665,7 @@ ApplicationWindow {
                                         }
                                         Caption { Layout.fillWidth: true; text: row.location; visible: win.searching; elide: Text.ElideMiddle }
                                     }
-                                    Caption { text: row.extension; visible: !row.directory && !row.active && tree.width > 480 }
+                                    Caption { text: row.kind === "link" ? win.t("link_item") : row.extension; visible: !row.directory && !row.active && tree.width > 480 }
                                     Row {
                                         visible: row.active; spacing: 2
                                         SoftButton {
@@ -870,6 +871,14 @@ ApplicationWindow {
                 color: win.s.error ? win.pal.danger : win.pal.muted
                 HoverHandler { onHoveredChanged: win.hint(statusText, hovered && statusText.truncated ? statusText.text : "") }
             }
+            // Elementi non letti nell'ultima scansione / Items not read in the latest scan
+            SoftButton {
+                objectName: "errorsButton"
+                flat: true; implicitHeight: 26; glyph: "\uE7BA"
+                visible: win.s.errors > 0 && !win.s.busy
+                text: win.fmt("scan_errors_button", { count: win.num(win.s.errors) })
+                onClicked: errorsDialog.open()
+            }
             Caption { text: win.s.busy && win.s.progress >= 0 ? Math.round(win.s.progress * 100) + "%" : "© 2026 Mapper by Mattia De Lillo" }
         }
     }
@@ -1017,6 +1026,46 @@ ApplicationWindow {
         contentItem: Label {
             text: win.fmt("confirm_delete", { name: win.baseName(win.targetPath) })
             wrapMode: Text.WordWrap; color: win.pal.ink
+        }
+    }
+    SoftDialog {
+        id: errorsDialog; objectName: "errorsDialog"
+        title: win.t("scan_errors_title")
+        width: Math.min(win.width - 80, 760); height: Math.min(win.height - 80, 560)
+        acceptText: win.t("close"); rejectText: ""
+        property var items: []
+        readonly property var reasons: ({
+            access_denied: win.t("reason_access_denied"), not_found: win.t("reason_not_found"),
+            path_too_long: win.t("reason_path_too_long"), depth_limit: win.t("reason_depth_limit"),
+            error: win.t("reason_error")
+        })
+        onAboutToShow: items = backend.scanErrors()
+        contentItem: ColumnLayout {
+            spacing: 10
+            Caption {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap
+                text: win.t("scan_errors_intro") + (win.s.errors > errorsDialog.items.length
+                      ? " " + win.fmt("errors_more", { shown: win.num(errorsDialog.items.length), total: win.num(win.s.errors) }) : "")
+            }
+            Rectangle {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                radius: 14; color: win.pal.inset; border.width: 1; border.color: win.pal.line
+                ListView {
+                    objectName: "errorsList"
+                    anchors.fill: parent; anchors.margins: 6; clip: true
+                    model: errorsDialog.items
+                    ScrollBar.vertical: SoftScrollBar {}
+                    delegate: ColumnLayout {
+                        required property var modelData
+                        width: ListView.view.width; spacing: 0
+                        Label {
+                            Layout.fillWidth: true; text: modelData.path; elide: Text.ElideMiddle
+                            color: win.pal.ink; leftPadding: 8; topPadding: 6
+                        }
+                        Caption { text: errorsDialog.reasons[modelData.reason] || modelData.reason; leftPadding: 8; bottomPadding: 6 }
+                    }
+                }
+            }
         }
     }
     SoftDialog {

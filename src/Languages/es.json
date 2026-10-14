@@ -97,5 +97,19 @@
     "error_root_locked": "La carpeta mapeada no se puede renombrar, duplicar ni eliminar.",
     "error_copy_into_self": "Una carpeta no se puede copiar ni mover dentro de sí misma.",
     "error_source_missing": "El elemento a pegar ya no existe.",
-    "error_trash": "No se pudo mover el elemento a la Papelera. No se eliminó nada."
+    "error_trash": "No se pudo mover el elemento a la Papelera. No se eliminó nada.",
+    "scanning_found": "Mapeando… {count} elementos encontrados",
+    "scan_complete_errors": "Mapeo completado · {count} elementos · no legibles: {errors}",
+    "scan_errors_button": "No legibles: {count}",
+    "scan_errors_title": "Elementos no leídos",
+    "scan_errors_intro": "Estos elementos se omitieron durante el mapeo; todo lo demás está en el mapa.",
+    "errors_more": "Se muestran los primeros {shown} de {total}.",
+    "reason_access_denied": "Acceso denegado",
+    "reason_not_found": "Ya no existe",
+    "reason_path_too_long": "Ruta demasiado larga",
+    "reason_depth_limit": "Demasiado profundo (más de 500 niveles)",
+    "reason_error": "Error de lectura",
+    "link_item": "vínculo",
+    "error_path_changed": "El elemento cambió después de seleccionarlo. No se hizo nada: actualiza el mapa (F5).",
+    "links_skipped": "Hecho, pero {count} vínculos (uniones o vínculos simbólicos) no se pudieron recrear y no se copiaron."
 }

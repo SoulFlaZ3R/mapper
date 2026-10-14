@@ -44,7 +44,7 @@ def shot(name):
         assert window.grabWindow().save(str(shots / (name + '.png')))
 
 def names():
-    return [row['itemName'] for row in backend.model.rows]
+    return [backend.model.item(i)['itemName'] for i in range(backend.model.rowCount())]
 
 try:
     with tempfile.TemporaryDirectory() as folder:
@@ -66,7 +66,7 @@ try:
         backend.previewPreferences('light', 'it', False)
         window.setWidth(1320); window.setHeight(850)
         settle()
-        for name in ['settingsDialog', 'exportDialog', 'editDialog', 'deleteDialog', 'guideDialog']:
+        for name in ['settingsDialog', 'exportDialog', 'editDialog', 'deleteDialog', 'guideDialog', 'errorsDialog']:
             dialog = window.findChild(QObject, name)
             assert dialog is not None, name
             window.setProperty('targetPath', str(root / 'Roadmap.md'))

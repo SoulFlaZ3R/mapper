@@ -97,5 +97,19 @@
     "error_root_locked": "La cartella mappata non può essere rinominata, duplicata o eliminata.",
     "error_copy_into_self": "Una cartella non può essere copiata o spostata dentro sé stessa.",
     "error_source_missing": "L’elemento da incollare non esiste più.",
-    "error_trash": "Impossibile spostare l’elemento nel Cestino. Non è stato eliminato nulla."
+    "error_trash": "Impossibile spostare l’elemento nel Cestino. Non è stato eliminato nulla.",
+    "scanning_found": "Mappatura in corso… {count} elementi trovati",
+    "scan_complete_errors": "Mappatura completata · {count} elementi · non leggibili: {errors}",
+    "scan_errors_button": "Non leggibili: {count}",
+    "scan_errors_title": "Elementi non letti",
+    "scan_errors_intro": "Questi elementi sono stati saltati durante la mappatura; tutto il resto è nella mappa.",
+    "errors_more": "Mostrati i primi {shown} su {total}.",
+    "reason_access_denied": "Accesso negato",
+    "reason_not_found": "Non esiste più",
+    "reason_path_too_long": "Percorso troppo lungo",
+    "reason_depth_limit": "Troppo profondo (oltre 500 livelli)",
+    "reason_error": "Errore di lettura",
+    "link_item": "collegamento",
+    "error_path_changed": "L’elemento è cambiato dopo la selezione. Non è stato fatto nulla: aggiorna la mappa (F5).",
+    "links_skipped": "Fatto, ma {count} collegamenti (junction o link simbolici) non si potevano ricreare e non sono stati copiati."
 }
