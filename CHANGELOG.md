@@ -7,6 +7,8 @@ The section of each version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-14
+
 ### Added
 
 - `mapper-cli.exe`: command line with `scan`, `export`, `snapshot`, `diff` and `validate`, JSON output, JSON-lines logs and documented exit codes ([docs/cli.md](docs/cli.md)); released next to `Mapper.exe` with its own SHA-256 and attestation
@@ -60,5 +62,6 @@ First public release.
 
 - File actions no longer fail as "outside the mapped folder" when the folder path uses Windows 8.3 short names (for example `RUNNER~1`)
 
-[Unreleased]: https://github.com/SoulFlaZ3R/mapper/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/SoulFlaZ3R/mapper/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/SoulFlaZ3R/mapper/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/SoulFlaZ3R/mapper/releases/tag/v1.5.0

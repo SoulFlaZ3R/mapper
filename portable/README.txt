@@ -1,4 +1,4 @@
-MAPPER 1.5 — PySide6 + Qt Quick/QML
+MAPPER 2.0 — PySide6 + Qt Quick/QML
 © 2026 Mattia De Lillo
 
 ITALIANO

@@ -1,4 +1,4 @@
-# Mapper 1.5
+# Mapper 2.0
 
 [English](README.md) · **Italiano**
 
