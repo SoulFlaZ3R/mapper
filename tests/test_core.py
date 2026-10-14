@@ -8,12 +8,13 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import reference_scanner_v15 as legacy  # noqa: E402  scanner della 1.5, riferimento congelato / frozen 1.5 reference
 from mapper_core import DIR, FILE, LINK, fsops, root_label, scan  # noqa: E402
-from mapper_core.paths import display, extended  # noqa: E402
+from mapper_core.paths import display, error_reason, extended  # noqa: E402
 
 
 def junction(link, target):
@@ -160,6 +161,31 @@ class WalkerTests(TempTree):
             self.assertGreaterEqual(tree.index_of(str(self.root / name)), 0, name)
 
 
+class PathAndCancelTests(TempTree):
+    def test_error_reasons(self):
+        def err(winerror):
+            exc = OSError()
+            exc.winerror = winerror
+            return exc
+        self.assertEqual(error_reason(err(5)), 'access_denied')
+        self.assertEqual(error_reason(err(3)), 'not_found')
+        self.assertEqual(error_reason(err(206)), 'path_too_long')
+        self.assertEqual(error_reason(err(1)), 'error')
+        self.assertEqual(error_reason(FileNotFoundError(2, 'missing')), 'not_found')
+
+    def test_extended_is_idempotent(self):
+        once = extended(str(self.root))
+        self.assertEqual(extended(once), once)
+
+    def test_cancel_during_a_large_folder(self):
+        for i in range(50):
+            (self.root / f'f{i}.txt').touch()
+        cancel = threading.Event()
+        tree = scan(self.root, cancel=cancel, progress=lambda n: cancel.set(), progress_every=5)
+        self.assertTrue(tree.cancelled)
+        self.assertLess(len(tree), 56)
+
+
 class SafeCopyTests(TempTree):
     def test_copy_never_follows_a_looping_junction(self):
         (self.root / 'A').mkdir()
@@ -194,6 +220,47 @@ class SafeCopyTests(TempTree):
         fsops.remove_tree(self.root / 'A')
         self.assertFalse((self.root / 'A').exists())
         self.assertTrue((outside / 'keep.txt').exists())
+
+    def cross_drive(self):
+        """os.rename come tra due unità diverse / os.rename as between two drives."""
+        real_rename = os.rename
+        def rename(src, dst):
+            exc = OSError('different drive')
+            exc.winerror = fsops.ERROR_NOT_SAME_DEVICE
+            raise exc
+        return mock.patch.object(fsops.os, 'rename', rename), real_rename
+
+    def test_move_between_drives_copies_then_removes(self):
+        patch, _ = self.cross_drive()
+        with patch:
+            fsops.move(self.root / 'nested', self.root / 'Alpha' / 'nested')
+            fsops.move(self.root / 'photo.png', self.root / 'Alpha' / 'photo.png')
+        self.assertFalse((self.root / 'nested').exists())
+        self.assertFalse((self.root / 'photo.png').exists())
+        self.assertEqual((self.root / 'Alpha' / 'nested' / 'report.TXT').read_text(), 'report')
+        self.assertEqual((self.root / 'Alpha' / 'photo.png').read_text(), 'image')
+
+    def test_move_between_drives_keeps_source_if_a_link_is_skipped(self):
+        junction(self.root / 'nested' / 'loop', self.root / 'nested')
+        patch, _ = self.cross_drive()
+        with patch, mock.patch.object(fsops, 'CreateJunction', None):
+            report = fsops.move(self.root / 'nested', self.root / 'Alpha' / 'nested')
+        self.assertEqual(len(report.skipped), 1)
+        self.assertTrue((self.root / 'nested' / 'report.TXT').exists(), 'source must be kept')
+        self.assertTrue((self.root / 'Alpha' / 'nested' / 'report.TXT').exists())
+
+    def test_other_rename_errors_are_raised(self):
+        with self.assertRaises(OSError):
+            fsops.move(self.root / 'missing', self.root / 'Alpha' / 'missing')
+
+    def test_symlink_without_privilege_is_skipped(self):
+        junction(self.root / 'link', self.root / 'nested')
+        report = fsops.CopyReport()
+        with mock.patch.object(fsops.os, 'symlink', side_effect=OSError(1314, 'privilege not held')):
+            fsops._copy_link(str(self.root / 'link'), str(self.root / 'copy'), False, True, report)
+        self.assertEqual((report.links, len(report.skipped)), (0, 1))
+        self.assertTrue(fsops.is_link(self.root / 'link'))
+        self.assertFalse(fsops.is_link(self.root / 'nested'))
 
     def test_move_and_copy_keep_content_and_dates(self):
         os.utime(self.root / 'nested' / 'report.TXT', (1_600_000_000, 1_600_000_000))
