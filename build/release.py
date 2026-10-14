@@ -6,10 +6,10 @@ Uso / Usage (dalla root del progetto / from the project root):
   .venv\\Scripts\\python.exe build\\release.py patch|minor|major|X.Y.Z [--dry-run]
   .venv\\Scripts\\python.exe build\\release.py notes [--tag vX.Y.Z] [--out release-notes.md]
 
-Release: branch main pulito → VERSION in src/backend.py, titoli dei README, portable/README.txt e
+Release: branch main pulito → VERSION in src/mapper_core/version.py, titoli dei README, portable/README.txt e
 CLAUDE.md aggiornati → la sezione [Unreleased] del CHANGELOG diventa [X.Y.Z] → test → commit
 "Action: release" e tag annotato vX.Y.Z. Alla fine stampa i comandi di push.
-Release: clean main branch → VERSION in src/backend.py, README titles, portable/README.txt and
+Release: clean main branch → VERSION in src/mapper_core/version.py, README titles, portable/README.txt and
 CLAUDE.md updated → the CHANGELOG [Unreleased] section becomes [X.Y.Z] → tests → "Action: release"
 commit and annotated tag vX.Y.Z. Finally prints the push commands.
 
@@ -34,7 +34,7 @@ EOL = r'(?=\r?$)'
 VERSION_RE = re.compile(r"^VERSION = '(\d+\.\d+\.\d+)'" + EOL, re.M)
 # (file, regex, sostituzione, obbligatorio) / (file, regex, replacement, required)
 VERSION_SPOTS = [
-    ('src/backend.py', VERSION_RE, lambda v: f"VERSION = '{v}'", True),
+    ('src/mapper_core/version.py', VERSION_RE, lambda v: f"VERSION = '{v}'", True),
     ('README.md', re.compile(r'^# Mapper \d+\.\d+(?:\.\d+)?' + EOL, re.M), lambda v: f'# Mapper {short(v)}', True),
     ('README.it.md', re.compile(r'^# Mapper \d+\.\d+(?:\.\d+)?' + EOL, re.M), lambda v: f'# Mapper {short(v)}', True),
     ('portable/README.txt', re.compile(r'^MAPPER \d+\.\d+(?:\.\d+)?(?= )', re.M), lambda v: f'MAPPER {short(v)}', True),
@@ -84,9 +84,9 @@ def write(path, text):
 
 
 def current_version():
-    match = VERSION_RE.search(read(ROOT / 'src' / 'backend.py'))
+    match = VERSION_RE.search(read(ROOT / 'src' / 'mapper_core' / 'version.py'))
     if not match:
-        raise ReleaseError("VERSION = 'X.Y.Z' not found in src/backend.py")
+        raise ReleaseError("VERSION = 'X.Y.Z' not found in src/mapper_core/version.py")
     return match.group(1)
 
 
@@ -238,7 +238,7 @@ Annullare prima del push / Undo before pushing:
 def notes(tag, out):
     version = current_version()
     if tag and tag != f'v{version}':
-        raise ReleaseError(f"tag {tag} does not match VERSION = '{version}' in src/backend.py")
+        raise ReleaseError(f"tag {tag} does not match VERSION = '{version}' in src/mapper_core/version.py")
     body = section(read(ROOT / 'CHANGELOG.md'), version)
     Path(out).write_text(body + '\n', encoding='utf-8')
     if os.environ.get('GITHUB_OUTPUT'):

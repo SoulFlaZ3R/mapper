@@ -21,8 +21,8 @@ from mapper_core import DIR, FILE, diff, export, fsops, scan as scan_tree, snaps
 from mapper_core.filters import Excludes
 from mapper_core.model import KIND_NAMES, NO_EXTENSION
 from mapper_core.paths import display, extended, normalize
+from mapper_core.version import VERSION
 
-VERSION = '1.5.0'
 THEMES = ('light', 'dark', 'blue', 'red', 'system')
 LANGUAGES = ('it', 'en', 'de', 'fr', 'es')
 PREVIEW_LINES = 1200
