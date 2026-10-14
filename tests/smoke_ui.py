@@ -66,7 +66,7 @@ try:
         backend.previewPreferences('light', 'it', False)
         window.setWidth(1320); window.setHeight(850)
         settle()
-        for name in ['settingsDialog', 'exportDialog', 'editDialog', 'deleteDialog', 'guideDialog', 'errorsDialog']:
+        for name in ['settingsDialog', 'exportDialog', 'editDialog', 'deleteDialog', 'guideDialog', 'errorsDialog', 'scanOptionsDialog']:
             dialog = window.findChild(QObject, name)
             assert dialog is not None, name
             window.setProperty('targetPath', str(root / 'Roadmap.md'))
@@ -74,6 +74,17 @@ try:
             settle()
             assert dialog.property('visible'), name
             shot(name)
+            assert QMetaObject.invokeMethod(dialog, 'close')
+            settle()
+        # Ogni formato di esportazione nell'anteprima / Every export format in the preview
+        dialog = window.findChild(QObject, 'exportDialog')
+        for fmt in ['md', 'json', 'csv', 'txt']:
+            dialog.setProperty('format', fmt)
+            dialog.setProperty('redact', fmt == 'json')
+            assert QMetaObject.invokeMethod(dialog, 'open')
+            settle()
+            assert dialog.property('preview')['text'], fmt
+            shot('export-' + fmt)
             assert QMetaObject.invokeMethod(dialog, 'close')
             settle()
         menu = window.findChild(QObject, 'contextMenu')

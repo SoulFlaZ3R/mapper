@@ -16,6 +16,7 @@ def used_keys():
     keys |= {'theme_' + theme for theme in re.search(r'property var themes: \[([^\]]+)\]', qml).group(1).replace('"', '').replace(' ', '').split(',')}
     keys |= set(re.findall(r"_status\('([a-z_]+)'", py)) | set(re.findall(r"UserError\('([a-z_]+)'\)", py))
     keys |= set(re.findall(r"_translations\['([a-z_]+)'\]", py))
+    keys |= set(re.findall(r"_part\('([a-z_]+)'", py))
     return keys
 
 

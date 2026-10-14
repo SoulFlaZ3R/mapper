@@ -224,7 +224,8 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.backend.recent, [str(self.root)])
         self.backend.preferences('dark', 'it', True)
         saved = json.loads(self.backend.config_path.read_text(encoding='utf-8'))
-        self.assertEqual(saved, dict(theme='dark', language='it', reducedMotion=True, recent=[str(self.root)]))
+        self.assertEqual(saved, dict(theme='dark', language='it', reducedMotion=True, recent=[str(self.root)],
+                                     excludeTechnical=False, excludePatterns='', maxLevels=0))
         self.assertEqual(self.backend.translations['browse'], 'Sfoglia')
         self.assertTrue(self.backend.state['status'].startswith('Mappatura completata'))
         self.backend.previewPreferences('red', 'de', False)
@@ -343,6 +344,63 @@ class BackendTests(unittest.TestCase):
         self.assertFalse(self.backend.state['error'], self.backend.state['status'])
         self.assertTrue(os.path.isdir(BS * 2 + '?' + BS + deep + BS + 'renamed'))
         self.assertGreaterEqual(self.backend._tree.index_of(deep + BS + 'renamed'), 0)
+
+
+    # ── Milestone 1B: esclusioni ed esportazione / exclusions and export ──
+    def test_scan_options_exclude_limit_and_persist(self):
+        (self.root / '.git').mkdir()
+        (self.root / '.git' / 'HEAD').touch()
+        (self.root / 'debug.log').touch()
+        self.scan()
+        self.assertIn('.git', self.names())
+        self.assertTrue(self.backend.setScanOptions(True, '*.log', 0))
+        self.settle()
+        self.wait(lambda: '.git' not in self.names())
+        self.assertNotIn('debug.log', self.names())
+        self.assertEqual(self.backend.state['excluded'], 2)
+        self.assertIn('excluded: 2', self.backend.state['status'])
+        saved = json.loads(self.backend.config_path.read_text(encoding='utf-8'))
+        self.assertEqual((saved['excludeTechnical'], saved['excludePatterns'], saved['maxLevels']), (True, '*.log', 0))
+        self.assertTrue(self.backend.setScanOptions(False, '', 1))
+        self.settle()
+        self.assertEqual(self.backend.state['truncated'], 2)
+        self.assertIn('folders beyond the level limit: 2', self.backend.state['status'])
+        self.assertFalse(self.backend.setScanOptions(False, '[z-a]', 0))
+        self.assertTrue(self.backend.state['error'])
+        self.assertEqual(self.backend.state['maxLevels'], 1)
+
+    def test_invalid_scan_options_in_config_fall_back(self):
+        self.backend.config_path.write_text(json.dumps(dict(excludeTechnical='yes', excludePatterns='[z-a]', maxLevels=7)),
+                                            encoding='utf-8')
+        restored = MapperBackend(self.backend.config_path)
+        self.assertEqual((restored.state['excludeTechnical'], restored.state['excludePatterns'], restored.state['maxLevels']),
+                         (False, '', 0))
+        restored.shutdown()
+
+    def test_export_preview_formats_and_folder_detection(self):
+        for i in range(1300):
+            (self.root / 'nested' / f'f{i:04d}.txt').touch()
+        self.scan()
+        self.assertTrue(self.backend.isFolder(str(self.root / 'nested')))
+        self.assertFalse(self.backend.isFolder(str(self.root / 'photo.png')))
+        full = self.backend.exportPreview('json', '', False, True)
+        self.assertTrue(full['partial'])
+        self.assertEqual(full['lines'], 1200)
+        sub = self.backend.exportPreview('txt', str(self.root / 'nested'), False, True)
+        self.assertTrue(sub['text'].startswith('nested/' + chr(10)))
+        hidden = self.backend.exportPreview('md', '', True, False)
+        self.assertNotIn(str(self.root), hidden['text'])
+        self.assertEqual(self.backend.exportPreview('xml', '', False, True)['text'], '')
+
+    def test_save_export_writes_the_chosen_format(self):
+        self.scan()
+        destination = Path(self.temp.name) / 'map.json'
+        self.backend.saveExport(QUrl.fromLocalFile(str(destination)).toString(), 'json', str(self.root / 'nested'), True, True)
+        self.settle()
+        data = json.loads(destination.read_text(encoding='utf-8'))
+        self.assertEqual(data['root'], {'name': 'nested', 'path': None})
+        self.assertEqual([e['path'] for e in data['entries']], ['report.TXT'])
+        self.assertTrue(self.backend.state['status'].startswith('Saved'), self.backend.state['status'])
 
 
 class ConfigLocationTests(unittest.TestCase):

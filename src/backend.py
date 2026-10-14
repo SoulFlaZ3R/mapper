@@ -6,10 +6,10 @@ La logica sul filesystem vive in mapper_core (senza Qt) / Filesystem logic lives
 import json
 import os
 import queue
+import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 from array import array
 from itertools import islice
@@ -17,7 +17,8 @@ from pathlib import Path
 from PySide6.QtCore import (QAbstractListModel, QFile, QLocale, QModelIndex, QObject, Property,
                             QTimer, Qt, QUrl, Signal, Slot)
 from PySide6.QtGui import QDesktopServices, QGuiApplication
-from mapper_core import DIR, FILE, fsops, scan as scan_tree
+from mapper_core import DIR, FILE, export, fsops, scan as scan_tree
+from mapper_core.filters import Excludes
 from mapper_core.model import KIND_NAMES, NO_EXTENSION
 from mapper_core.paths import display, extended, normalize
 
@@ -25,6 +26,8 @@ VERSION = '1.5.0'
 THEMES = ('light', 'dark', 'blue', 'red', 'system')
 LANGUAGES = ('it', 'en', 'de', 'fr', 'es')
 PREVIEW_LINES = 1200
+# Livelli selezionabili nelle impostazioni (0 = tutti) / Levels selectable in Settings (0 = all)
+LEVEL_CHOICES = (0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20)
 MAX_RECENT = 6
 # Errori di scansione passati alla finestra di dettaglio / Scan errors passed to the details dialog
 MAX_ERRORS_SHOWN = 500
@@ -199,7 +202,8 @@ class MapperBackend(QObject):
                            total=0, folders=0, files=0, links=0, errors=0, found=0, shown=0, query='',
                            extension='', theme='light', language='en', reducedMotion=False, clipboard='',
                            clipboardMode='', version=VERSION, cancellable=True, rootName='',
-                           previewLimit=PREVIEW_LINES)
+                           previewLimit=PREVIEW_LINES, excludeTechnical=False, excludePatterns='', maxLevels=0,
+                           excluded=0, truncated=0)
         try:
             prefs = json.loads(self.config_path.read_text(encoding='utf-8'))
         except (OSError, ValueError):
@@ -213,6 +217,12 @@ class MapperBackend(QObject):
         self._state.update(language=language if language in LANGUAGES else 'en',
                            theme=theme if theme in THEMES else 'light',
                            reducedMotion=bool(prefs.get('reducedMotion', False)))
+        # Opzioni di scansione: valori non validi tornano ai predefiniti / Scan options: invalid values fall back
+        patterns = prefs.get('excludePatterns', '')
+        levels = prefs.get('maxLevels', 0)
+        self._state.update(excludeTechnical=prefs.get('excludeTechnical') is True,
+                           excludePatterns=patterns if isinstance(patterns, str) and self._valid_patterns(patterns) else '',
+                           maxLevels=levels if levels in LEVEL_CHOICES and not isinstance(levels, bool) else 0)
         self._translations = self._load_translations()
         self._tree = None
         self._extensions = []
@@ -271,6 +281,78 @@ class MapperBackend(QObject):
         """Mappa completa dell'ultima scansione / Full map of the latest scan."""
         return '\n'.join(self._tree.lines()) if self._tree else ''
 
+    def _export_options(self, subtree, redact, metadata):
+        """Opzioni di export; subtree = percorso di una cartella o '' / Export options; subtree = folder path or ''."""
+        index = self._tree.index_of(subtree) if subtree and self._tree else -1
+        if index >= 0 and self._tree.kinds[index] != DIR:
+            index = -1
+        return export.ExportOptions(subtree=index, redact=bool(redact), metadata=bool(metadata), version=VERSION)
+
+    @Slot(str, result=bool)
+    def isFolder(self, path):
+        """Cartella presente nell'ultima mappa (menu contestuale) / Folder in the latest map (context menu)."""
+        index = self._tree.index_of(path) if path and self._tree else -1
+        return index >= 0 and self._tree.kinds[index] == DIR
+
+    @Slot(str, str, bool, bool, result='QVariantMap')
+    def exportPreview(self, fmt, subtree, redact, metadata):
+        """Prime righe dell'esportazione / First lines of the export."""
+        if not self._tree or fmt not in export.FORMATS:
+            return dict(text='', partial=False, lines=0)
+        rows = list(islice(export.lines(self._tree, fmt, self._export_options(subtree, redact, metadata)),
+                           PREVIEW_LINES + 1))
+        partial = len(rows) > PREVIEW_LINES
+        return dict(text='\n'.join(rows[:PREVIEW_LINES]), partial=partial, lines=min(len(rows), PREVIEW_LINES))
+
+    @Slot(str, str, bool, bool)
+    def copyExport(self, fmt, subtree, redact, metadata):
+        if self._tree and fmt in export.FORMATS:
+            options = self._export_options(subtree, redact, metadata)
+            QGuiApplication.clipboard().setText(export.text(self._tree, fmt, options))
+            self._status('map_copied')
+
+    @Slot(str, str, str, bool, bool)
+    def saveExport(self, url, fmt, subtree, redact, metadata):
+        """
+        Salva l'esportazione nel formato scelto, in modo atomico, in un thread.
+        Saves the export in the chosen format, atomically, in a thread.
+        """
+        if not self._state['scanned'] or self._state['busy'] or not self._tree or fmt not in export.FORMATS:
+            return
+        destination = QUrl(url).toLocalFile() if QUrl(url).isLocalFile() else url
+        tree, options = self._tree, self._export_options(subtree, redact, metadata)
+        def job(cancel):
+            export.write(tree, fmt, destination, options, cancel)
+            return destination
+        self._work(job, lambda path: self._status('saved_to', path=path))
+
+    @Slot(bool, str, int, result=bool)
+    def setScanOptions(self, technical, patterns, levels):
+        """
+        Esclusioni e livelli; salvati e applicati subito con una nuova mappatura.
+        Exclusions and levels; saved and applied right away with a new mapping.
+        """
+        patterns = patterns.replace('\r', '')
+        if not self._valid_patterns(patterns):
+            self._status('error_pattern', error=True)
+            return False
+        levels = levels if levels in LEVEL_CHOICES else 0
+        changed = (bool(technical), patterns, levels) != (self._state['excludeTechnical'],
+                                                          self._state['excludePatterns'], self._state['maxLevels'])
+        self._set(excludeTechnical=bool(technical), excludePatterns=patterns, maxLevels=levels)
+        self._save_config()
+        if changed and self._state['scanned'] and not self._state['busy']:
+            self.scan()
+        return True
+
+    @staticmethod
+    def _valid_patterns(patterns):
+        try:
+            Excludes.from_text(patterns)
+            return True
+        except re.error:
+            return False
+
     # ── Stato, traduzioni, errori / State, translations, errors ─────────
     def _load_translations(self):
         data = json.loads((BASE / 'Languages' / 'en.json').read_text(encoding='utf-8'))
@@ -281,10 +363,17 @@ class MapperBackend(QObject):
         self._state.update(values)
         self.changed.emit()
 
-    def _status(self, key, error=False, **values):
+    def _status(self, key, error=False, parts=(), **values):
         # Conserva la chiave per ritradurre al cambio lingua / Keep the key to re-translate on language change
-        self._status_source = (key, values, error)
-        self._set(status=self._translations[key].format(**values), error=error)
+        # parts: altre (chiave, valori) aggiunte dopo ' · ' / more (key, values) appended after ' · '
+        self._status_source = (key, values, error, parts)
+        text = ' · '.join([self._translations[key].format(**values)] +
+                          [self._translations[k].format(**v) for k, v in parts])
+        self._set(status=text, error=error)
+
+    @staticmethod
+    def _part(key, **values):
+        return key, values
 
     def _error(self, exc):
         if isinstance(exc, UserError):
@@ -294,7 +383,9 @@ class MapperBackend(QObject):
 
     def _save_config(self):
         prefs = dict(theme=self._state['theme'], language=self._state['language'],
-                     reducedMotion=self._state['reducedMotion'], recent=self._recent)
+                     reducedMotion=self._state['reducedMotion'], recent=self._recent,
+                     excludeTechnical=self._state['excludeTechnical'], excludePatterns=self._state['excludePatterns'],
+                     maxLevels=self._state['maxLevels'])
         try:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             self.config_path.write_text(json.dumps(prefs, indent=2, ensure_ascii=False), encoding='utf-8')
@@ -363,8 +454,8 @@ class MapperBackend(QObject):
             self._expanded.clear()
             self._scanned_root = None
             self.model.replace(array('i'), None, frozenset(), False, True)
-            self._set(scanned=False, total=0, files=0, folders=0, links=0, errors=0, shown=0, query='',
-                      extension='', rootName='')
+            self._set(scanned=False, total=0, files=0, folders=0, links=0, errors=0, excluded=0, truncated=0,
+                      shown=0, query='', extension='', rootName='')
         self._set(path=path)
 
     @Slot(str)
@@ -403,8 +494,11 @@ class MapperBackend(QObject):
             return
         self._set(path=root, found=0)
         self._status('scanning')
+        excludes = Excludes.from_text(self._state['excludePatterns'], self._state['excludeTechnical'])
+        levels = self._state['maxLevels'] or None
         def job(cancel):
-            tree = scan_tree(root, cancel=cancel, progress=lambda n: self._queue.put(('found', n)))
+            tree = scan_tree(root, excludes=excludes, levels=levels, cancel=cancel,
+                             progress=lambda n: self._queue.put(('found', n)))
             # Indice delle cartelle pronto nel worker, non nel thread dell'interfaccia
             # Folder index built in the worker, not on the UI thread
             tree.dir_index()
@@ -422,14 +516,20 @@ class MapperBackend(QObject):
             self.extensionsChanged.emit()
             self._remember(root)
             self._set(scanned=True, total=len(tree), folders=tree.folders, files=tree.files, links=tree.links,
-                      errors=len(tree.errors), rootName=os.path.basename(root) or root)
+                      errors=len(tree.errors), excluded=tree.excluded, truncated=tree.truncated,
+                      rootName=os.path.basename(root) or root)
             if self._note:
                 note, self._note = self._note, None
                 note()
-            elif tree.errors:
-                self._status('scan_complete_errors', count=len(tree), errors=len(tree.errors))
             else:
-                self._status('scan_complete', count=len(tree))
+                parts = []
+                if tree.excluded:
+                    parts.append(self._part('status_excluded', count=tree.excluded))
+                if tree.truncated:
+                    parts.append(self._part('status_truncated', count=tree.truncated))
+                if tree.errors:
+                    parts.append(self._part('status_errors', errors=len(tree.errors)))
+                self._status('scan_complete', parts=parts, count=len(tree))
             self._filter(reset=not same_root)
         self._work(job, done)
 
@@ -573,25 +673,7 @@ class MapperBackend(QObject):
         Salva la mappa dell'ultima scansione (la stessa dell'anteprima), in modo atomico.
         Saves the latest scan's map (the same as the preview), atomically.
         """
-        if not self._state['scanned'] or self._state['busy'] or not self._tree:
-            return
-        destination = QUrl(url).toLocalFile() if QUrl(url).isLocalFile() else url
-        tree = self._tree
-        def job(cancel):
-            temp_path = None
-            try:
-                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=Path(destination).parent,
-                                                 prefix='.mapper-', suffix='.tmp', delete=False) as handle:
-                    temp_path = handle.name
-                    for line in tree.lines():
-                        handle.write(line + '\n')
-                if not cancel.is_set():
-                    os.replace(temp_path, destination)
-            finally:
-                if temp_path and os.path.exists(temp_path):
-                    os.unlink(temp_path)
-            return destination
-        self._work(job, lambda path: self._status('saved_to', path=path))
+        self.saveExport(url, 'txt', '', False, True)
 
     @Slot(str, str)
     def clipboard(self, path, mode):
@@ -750,8 +832,8 @@ class MapperBackend(QObject):
             self._translations = self._load_translations()
             self.translationsChanged.emit()
             if self._status_source:
-                key, values, error = self._status_source
-                self._status(key, error, **values)
+                key, values, error, parts = self._status_source
+                self._status(key, error, parts, **values)
         return True
 
     @Slot(str, str, bool)

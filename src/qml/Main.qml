@@ -85,6 +85,8 @@ ApplicationWindow {
     function nameDialog(kind, path, current) { action = kind; targetPath = path; itemName.text = current || ""; editDialog.open() }
     function removeDialog(path) { targetPath = path; deleteDialog.open() }
     function openContext(path, item, x, y) { targetPath = path; contextMenu.popup(item, x, y) }
+    // Esporta: tutta la mappa ('') o una cartella / Export: whole map ('') or one folder
+    function openExport(folder) { exportDialog.subtree = folder; exportDialog.open() }
     // Doppio clic / Invio: cartella → apri o mostra nell'albero, file → apri
     // Double-click / Enter: folder → expand or show in tree, file → open
     function activate(item) {
@@ -95,7 +97,8 @@ ApplicationWindow {
     }
     function saveMap() {
         let folder = parentDir(s.path)
-        let name = (s.rootName.replace(/[\\/:*?"<>|]/g, "") || "map") + "-map.txt"
+        let base = exportDialog.subtree ? baseName(exportDialog.subtree) : s.rootName
+        let name = (base.replace(/[\\/:*?"<>|]/g, "") || "map") + "-map." + exportDialog.format
         saveDialog.currentFolder = fileUrl(folder)
         saveDialog.selectedFile = fileUrl(folder + "/" + name)
         saveDialog.open()
@@ -394,14 +397,17 @@ ApplicationWindow {
     FileDialog {
         id: saveDialog
         title: win.t("export_map"); fileMode: FileDialog.SaveFile
-        nameFilters: [win.t("text_files") + " (*.txt)"]; defaultSuffix: "txt"
-        onAccepted: backend.exportMap(selectedFile.toString())
+        readonly property var filters: ({ txt: win.t("text_files") + " (*.txt)", md: win.t("markdown_files") + " (*.md)",
+                                          json: win.t("json_files") + " (*.json)", csv: win.t("csv_files") + " (*.csv)" })
+        nameFilters: [filters[exportDialog.format]]; defaultSuffix: exportDialog.format
+        onAccepted: backend.saveExport(selectedFile.toString(), exportDialog.format, exportDialog.subtree,
+                                       exportDialog.redact, exportDialog.metadata)
     }
 
     Shortcut { sequence: "Ctrl+O"; enabled: !win.s.busy; onActivated: folderDialog.open() }
     Shortcut { sequence: "Ctrl+L"; onActivated: { pathField.forceActiveFocus(); pathField.selectAll() } }
     Shortcut { sequence: "Ctrl+F"; enabled: win.s.scanned; onActivated: { filterField.forceActiveFocus(); filterField.selectAll() } }
-    Shortcut { sequence: "Ctrl+E"; enabled: win.s.scanned && !win.s.busy; onActivated: exportDialog.open() }
+    Shortcut { sequence: "Ctrl+E"; enabled: win.s.scanned && !win.s.busy; onActivated: win.openExport("") }
     Shortcut { sequence: "Ctrl+S"; enabled: win.s.scanned && !win.s.busy; onActivated: win.saveMap() }
     Shortcut { sequence: "F5"; enabled: !win.s.busy && win.s.path !== ""; onActivated: backend.scan() }
     Shortcut { sequence: "Escape"; enabled: win.s.busy && win.s.cancellable; onActivated: backend.cancel() }
@@ -935,6 +941,11 @@ ApplicationWindow {
         SoftMenuItem { text: win.t("show_in_folder"); glyph: "\uE8DA"; onTriggered: backend.showInFolder(win.targetPath) }
         SoftMenuItem { text: win.t("show_in_tree"); glyph: "\uE7AC"; visible: win.searching; onTriggered: backend.reveal(win.targetPath) }
         SoftMenuItem { text: win.t("copy_path"); glyph: "\uE71B"; onTriggered: backend.copyPath(win.targetPath) }
+        SoftMenuItem {
+            text: win.t("ctx_export_folder"); glyph: "\uE74E"
+            visible: backend.isFolder(win.targetPath); enabled: win.s.scanned && !win.s.busy
+            onTriggered: win.openExport(win.targetPath)
+        }
         SoftSeparator {}
         SoftMenuItem { text: win.t("ctx_cut"); glyph: "\uE8C6"; hint: "Ctrl+X"; enabled: !win.s.busy; onTriggered: backend.clipboard(win.targetPath, "cut") }
         SoftMenuItem { text: win.t("ctx_copy"); glyph: "\uE8C8"; hint: "Ctrl+C"; enabled: !win.s.busy; onTriggered: backend.clipboard(win.targetPath, "copy") }
@@ -965,17 +976,61 @@ ApplicationWindow {
         acceptText: win.t("save_as"); acceptGlyph: "\uE74E"
         rejectText: win.t("close")
         secondaryText: win.t("copy_map"); secondaryGlyph: "\uE8C8"
-        property int lines: 0
-        onAboutToShow: { previewText.text = backend.preview(); lines = backend.lineCount() }
+        property string format: "txt"
+        property string subtree: ""
+        property bool redact: false
+        property bool metadata: true
+        property var preview: ({ text: "", partial: false, lines: 0 })
+        readonly property var formats: ["txt", "md", "json", "csv"]
+        readonly property var formatNames: ({ txt: win.t("format_txt"), md: win.t("format_md"),
+                                              json: win.t("format_json"), csv: win.t("format_csv") })
+        function refresh() {
+            preview = backend.exportPreview(format, subtree, redact, metadata)
+            previewText.text = preview.text
+        }
+        onAboutToShow: { formatChoice.currentIndex = formats.indexOf(format); refresh() }
         onAccepted: win.saveMap()
-        onSecondaryClicked: backend.copyMap()
+        onSecondaryClicked: backend.copyExport(format, subtree, redact, metadata)
         contentItem: ColumnLayout {
             spacing: 10
+            RowLayout {
+                Layout.fillWidth: true; spacing: 12
+                SoftCombo {
+                    id: formatChoice; objectName: "formatChoice"
+                    Accessible.name: win.t("export_format")
+                    Layout.preferredWidth: 260
+                    model: exportDialog.formats
+                    labelFor: function(value) { return exportDialog.formatNames[value] || value }
+                    onActivated: { exportDialog.format = exportDialog.formats[currentIndex]; exportDialog.refresh() }
+                }
+                SoftSwitch {
+                    text: win.t("export_redact"); visible: exportDialog.format !== "txt"
+                    checked: exportDialog.redact
+                    onToggled: { exportDialog.redact = checked; exportDialog.refresh() }
+                }
+                SoftSwitch {
+                    text: win.t("export_metadata"); visible: exportDialog.format !== "txt"
+                    checked: exportDialog.metadata
+                    onToggled: { exportDialog.metadata = checked; exportDialog.refresh() }
+                }
+                Item { Layout.fillWidth: true }
+            }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8; visible: exportDialog.subtree !== ""
+                Caption {
+                    Layout.fillWidth: true; elide: Text.ElideMiddle
+                    text: win.fmt("export_subtree", { name: exportDialog.subtree })
+                }
+                SoftButton {
+                    flat: true; implicitHeight: 28; text: win.t("export_whole_map")
+                    onClicked: { exportDialog.subtree = ""; exportDialog.refresh() }
+                }
+            }
             Caption {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap
-                text: exportDialog.lines > win.s.previewLimit
-                      ? win.fmt("preview_truncated", { shown: win.num(win.s.previewLimit), total: win.num(exportDialog.lines) })
-                      : win.fmt("preview_lines", { total: win.num(exportDialog.lines) })
+                text: exportDialog.preview.partial
+                      ? win.fmt("preview_partial", { shown: win.num(exportDialog.preview.lines) })
+                      : win.fmt("preview_lines", { total: win.num(exportDialog.preview.lines) })
             }
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -1107,6 +1162,12 @@ ApplicationWindow {
             }
             SoftSwitch { id: reduce; text: win.t("reduce_motion"); Layout.topMargin: 4; onToggled: settings.preview() }
             Rectangle { Layout.fillWidth: true; Layout.topMargin: 8; height: 1; color: win.pal.line }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 10
+                Caption { text: win.t("exclusions"); Layout.fillWidth: true }
+                SoftButton { glyph: "\uE71C"; text: win.t("exclusions_edit"); onClicked: scanOptions.open() }
+            }
+            Rectangle { Layout.fillWidth: true; Layout.topMargin: 8; height: 1; color: win.pal.line }
             Caption { text: win.t("about") }
             Label {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: win.pal.ink
@@ -1116,6 +1177,49 @@ ApplicationWindow {
                 spacing: 8
                 SoftButton { glyph: "\uE897"; text: win.t("guide"); onClicked: guide.open() }
                 SoftButton { glyph: "\uE71B"; text: win.t("about_repo"); onClicked: Qt.openUrlExternally("https://github.com/SoulFlaZ3R/mapper") }
+            }
+        }
+    }
+    SoftDialog {
+        id: scanOptions; objectName: "scanOptionsDialog"
+        title: win.t("exclusions")
+        width: Math.min(win.width - 64, 560)
+        readonly property var levelChoices: [0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20]
+        onAboutToShow: {
+            technical.checked = win.s.excludeTechnical
+            patterns.text = win.s.excludePatterns
+            levelChoice.currentIndex = Math.max(0, levelChoices.indexOf(win.s.maxLevels))
+        }
+        onAccepted: backend.setScanOptions(technical.checked, patterns.text, levelChoices[levelChoice.currentIndex])
+        contentItem: ColumnLayout {
+            spacing: 10
+            SoftSwitch { id: technical; objectName: "excludeTechnical"; text: win.t("exclude_technical") }
+            Caption { text: win.t("exclude_patterns"); Layout.fillWidth: true; wrapMode: Text.WordWrap }
+            Rectangle {
+                Layout.fillWidth: true; implicitHeight: 76
+                radius: 12; color: win.pal.inset; border.width: 1
+                border.color: patterns.activeFocus ? win.pal.accent : win.pal.line
+                ScrollView {
+                    anchors.fill: parent; anchors.margins: 4; clip: true
+                    TextArea {
+                        id: patterns; objectName: "excludePatterns"
+                        font.family: "Consolas"; font.pixelSize: 13; color: win.pal.ink
+                        placeholderText: "*.tmp" + String.fromCharCode(10) + "/build/"
+                        placeholderTextColor: win.pal.muted
+                        selectionColor: win.pal.accent; selectedTextColor: win.pal.onAccent
+                        background: null
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 10
+                Caption { text: win.t("max_levels"); Layout.fillWidth: true }
+                SoftCombo {
+                    id: levelChoice; objectName: "levelChoice"
+                    Layout.preferredWidth: 120
+                    model: scanOptions.levelChoices
+                    labelFor: function(value) { return value === 0 ? win.t("levels_all") : String(value) }
+                }
             }
         }
     }
